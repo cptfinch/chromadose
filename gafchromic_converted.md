@@ -1,5 +1,17 @@
 # Importing your calibration films and creating the dose calibration curves
 
+## Reference
+
+The multichannel dosimetry method and rational function model used in this project is based on:
+
+> **Micke A, Lewis DF, Yu X.** "Multichannel film dosimetry with nonuniformity correction."
+> *Medical Physics.* 2011;38(5):2523-2534.
+> DOI: [10.1118/1.3576105](https://doi.org/10.1118/1.3576105)
+
+The associated commercial software implementation is **FilmQA Pro** by Ashland (the manufacturer of GafChromic films).
+
+---
+
 Retrieve the file paths of the calibration files and then import the images.
 
 ```mathematica
