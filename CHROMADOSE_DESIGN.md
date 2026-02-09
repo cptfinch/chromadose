@@ -419,17 +419,21 @@ chromadose compare treatment.tif --cal my_cal.json --methods micke,mayer,multiga
 - [x] 82 tests all passing
 - [x] **Deliverable:** ML-enhanced dosimetry
 
-### Milestone 6: v1.0 release — REMAINING
+### Milestone 6: v1.0 release — DONE
+- [x] Multigaussian 28x speedup (133s -> 4.7s): vectorized grid + parabolic interpolation
+- [x] 6-channel Multigaussian with pre-irradiation scans (solve_6channel)
+- [x] `analysis/registration.py`: automatic + manual film-to-TPS alignment
+- [x] README with API docs, CLI usage, references
+- [x] Version bumped to 1.0.0, PyPI-ready metadata
+- [x] 92 tests, all passing
+- [x] **Deliverable:** v1.0.0 ready for community release
+
+### Future work
 - [ ] Documentation site (mkdocs-material)
-- [ ] PyPI package
-- [ ] Example notebooks
-- [ ] Validation paper drafted
-- [ ] AAPM/COMP abstract submitted
+- [ ] PyPI publication
+- [ ] Example Jupyter notebooks
 - [ ] Pre-trained ANN weights for common EBT3/EBT4 scanner combos
-- [ ] 6-channel Multigaussian mode with pre-irradiation scans
-- [ ] `analysis/registration.py`: film-to-TPS alignment
-- [ ] Multigaussian performance optimization (vectorize minimize_scalar)
-- [ ] **Deliverable:** community release + publication
+- [ ] Validation paper + AAPM/COMP abstract
 
 ---
 
