@@ -41,6 +41,10 @@ dev = [
     "mypy>=1.0",
     "ruff>=0.1",
 ]
+docs = [
+    "mkdocs-material>=9.0",
+    "pymdown-extensions>=10.0",
+]
 
 [project.scripts]
 chromadose = "chromadose.cli:main"

@@ -1,0 +1,61 @@
+site_name: chromadose
+site_description: Modern multichannel radiochromic film dosimetry
+site_url: https://cptfinch.github.io/chromadose
+repo_url: https://github.com/cptfinch/chromadose
+repo_name: cptfinch/chromadose
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.expand
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+  - Methods:
+    - Overview: methods/overview.md
+    - Micke (2011): methods/micke.md
+    - Mayer (2012): methods/mayer.md
+    - Multigaussian (2018): methods/multigaussian.md
+    - Neural Network: methods/ann.md
+  - Analysis:
+    - Gamma Analysis: analysis/gamma.md
+    - Dose Profiles: analysis/profiles.md
+    - Registration: analysis/registration.md
+  - API Reference: api.md
+  - CLI: cli.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
+  - admonition
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+plugins:
+  - search
