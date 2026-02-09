@@ -1,20 +1,30 @@
 """Dose solving methods for chromadose."""
 
 from chromadose.methods.base import DoseSolver
+from chromadose.methods.mayer import MayerSolver
 from chromadose.methods.micke import MickeSolver
+from chromadose.methods.multigaussian import MultigaussianCalibration, MultigaussianSolver
 
-__all__ = ["DoseSolver", "MickeSolver", "get_solver"]
+__all__ = [
+    "DoseSolver",
+    "MayerSolver",
+    "MickeSolver",
+    "MultigaussianCalibration",
+    "MultigaussianSolver",
+    "get_solver",
+]
 
-_SOLVERS: dict[str, type[DoseSolver]] = {
+_SOLVERS: dict[str, type] = {
     "micke": MickeSolver,
+    "mayer": MayerSolver,
 }
 
 
-def get_solver(method: str) -> type[DoseSolver]:
+def get_solver(method: str) -> type:
     """Get a dose solver class by method name.
 
     Parameters:
-        method: One of "micke", "mayer", "multigaussian", "ann".
+        method: One of "micke", "mayer", "multigaussian".
 
     Returns:
         The solver class (not an instance).
