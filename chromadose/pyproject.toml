@@ -34,15 +34,16 @@ dependencies = [
 
 [project.optional-dependencies]
 dicom = ["pydicom>=2.4"]
-ann = ["torch>=2.0"]
-report = ["jinja2>=3.1"]
-cli = ["click>=8.0"]
+ann-gpu = ["torch>=2.0"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "mypy>=1.0",
     "ruff>=0.1",
 ]
+
+[project.scripts]
+chromadose = "chromadose.cli:main"
 
 [project.urls]
 Repository = "https://github.com/cptfinch/chromadose"
