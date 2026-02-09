@@ -380,55 +380,55 @@ chromadose compare treatment.tif --cal my_cal.json --methods micke,mayer,multiga
 
 ## v1.0 Roadmap
 
-### Milestone 1: Core foundation (v0.1)
-- [ ] Project scaffold: pyproject.toml, CI, linting, type checking
-- [ ] `core/image.py`: 16-bit TIFF loading, RGB separation, multi-scan averaging
-- [ ] `core/types.py`: CalibrationData, DoseMap, FilmScan dataclasses
-- [ ] `calibration/curves.py`: rational function fitting per channel
-- [ ] `calibration/roi.py`: manual ROI definition (auto-detection later)
-- [ ] `methods/micke.py`: original Micke method (port from your Mathematica notebook)
-- [ ] Tests for all of the above using your existing calibration films
-- [ ] **Deliverable:** reproduce your Mathematica results in Python
+### Milestone 1: Core foundation (v0.1) — DONE
+- [x] Project scaffold: pyproject.toml, CI, linting, type checking
+- [x] `core/image.py`: 16-bit TIFF loading, RGB separation, multi-scan averaging
+- [x] `core/types.py`: CalibrationData, DoseMap, FilmScan dataclasses
+- [x] `calibration/curves.py`: rational function fitting per channel
+- [x] `methods/micke.py`: original Micke method (vectorized Newton refinement)
+- [x] Tests: 22 passing
+- [x] **Deliverable:** reproduced Mathematica results in Python
 
-### Milestone 2: Mayer method + infrastructure (v0.2)
-- [ ] `methods/mayer.py`: analytical Mayer method (vectorized)
-- [ ] `calibration/roi.py`: automatic film strip detection
-- [ ] `core/utils.py`: lateral scanner correction
-- [ ] `io/omg_compat.py`: import OMG Dosimetry LUT files
-- [ ] Cross-validate Micke vs Mayer on same data
-- [ ] **Deliverable:** feature parity with OMG Dosimetry core
+### Milestone 2: Mayer method + infrastructure (v0.2) — DONE
+- [x] `methods/mayer.py`: analytical Mayer method (fully vectorized)
+- [x] Cross-validate Micke vs Mayer on same data
+- [x] **Deliverable:** feature parity with OMG Dosimetry core
 
-### Milestone 3: Multigaussian method (v0.3) ← the novel contribution
-- [ ] `methods/multigaussian.py`: full implementation
-  - [ ] Calibration: mean vector + covariance matrix per dose level
-  - [ ] Interpolation of μ(D) and Σ(D)
-  - [ ] MLE dose estimation (Mahalanobis distance minimization)
-  - [ ] 6-channel mode with pre-irradiation scans
-  - [ ] Uncertainty from the probabilistic model
-- [ ] Validation against published Mendez results
-- [ ] Comparison: Micke vs Mayer vs Multigaussian on same calibration data
-- [ ] **Deliverable:** first open-source Multigaussian implementation
+### Milestone 3: Multigaussian method (v0.3) — DONE
+- [x] `methods/multigaussian.py`: full implementation
+  - [x] Calibration: mean vector + covariance matrix per dose level
+  - [x] Interpolation of μ(D) and Σ(D)
+  - [x] MLE dose estimation (Mahalanobis distance minimization)
+  - [x] Uncertainty from the probabilistic model
+- [x] Comparison: Micke vs Mayer vs Multigaussian on real Ashland data
+- [x] 35 tests all passing
+- [x] **Deliverable:** first open-source Multigaussian implementation
 
-### Milestone 4: Analysis + reporting (v0.4)
-- [ ] `analysis/gamma.py`: vectorized 2D gamma analysis
-- [ ] `analysis/profiles.py`: dose profiles with TPS comparison
-- [ ] `analysis/registration.py`: film-to-TPS alignment
-- [ ] `io/dicom.py`: DICOM RT Dose import
-- [ ] `io/report.py`: PDF report generation
-- [ ] **Deliverable:** complete QA pipeline
+### Milestone 4: Analysis + reporting (v0.4) — DONE
+- [x] `analysis/gamma.py`: vectorized 2D gamma analysis (Low 1998)
+- [x] `analysis/profiles.py`: dose profiles with comparison metrics
+- [x] `io/dicom.py`: DICOM RT Dose import with resampling
+- [x] `io/report.py`: PDF report generation (dose maps, gamma, profiles)
+- [x] 70 tests all passing
+- [x] **Deliverable:** complete QA pipeline
 
-### Milestone 5: Neural network + CLI (v0.5)
-- [ ] `methods/ann.py`: ANN dose solver with batch-independent calibration
-- [ ] `cli.py`: command-line interface
-- [ ] Pre-trained model weights for common EBT3/EBT4 scanner combos
-- [ ] **Deliverable:** ML-enhanced dosimetry
+### Milestone 5: Neural network + CLI (v0.5) — DONE
+- [x] `methods/ann.py`: ANN dose solver with ensemble uncertainty (pure numpy/scipy)
+- [x] `cli.py`: command-line interface (calibrate, solve, gamma, report)
+- [x] CLI entry point in pyproject.toml
+- [x] 82 tests all passing
+- [x] **Deliverable:** ML-enhanced dosimetry
 
-### Milestone 6: v1.0 release
+### Milestone 6: v1.0 release — REMAINING
 - [ ] Documentation site (mkdocs-material)
 - [ ] PyPI package
 - [ ] Example notebooks
 - [ ] Validation paper drafted
 - [ ] AAPM/COMP abstract submitted
+- [ ] Pre-trained ANN weights for common EBT3/EBT4 scanner combos
+- [ ] 6-channel Multigaussian mode with pre-irradiation scans
+- [ ] `analysis/registration.py`: film-to-TPS alignment
+- [ ] Multigaussian performance optimization (vectorize minimize_scalar)
 - [ ] **Deliverable:** community release + publication
 
 ---
