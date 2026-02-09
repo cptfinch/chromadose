@@ -135,3 +135,98 @@ class TestMultigaussianSolver:
         result = solver.solve(film, cal.result)
         assert result.uncertainty.shape == (2, 2)
         assert np.all(result.uncertainty > 0)
+
+
+def _make_mg_calibration_6ch(n_samples: int = 500) -> MultigaussianCalibration:
+    """Create a 6-channel Multigaussian calibration (pre + post)."""
+    rng = np.random.default_rng(42)
+    doses = CALIBRATION_DOSES
+    n_doses = len(doses)
+
+    # Pre-irradiation values are dose-independent (unexposed film baseline)
+    pre_r = float(KNOWN_RED.pixel(np.array([0.0]))[0])
+    pre_g = float(KNOWN_GREEN.pixel(np.array([0.0]))[0])
+    pre_b = float(KNOWN_BLUE.pixel(np.array([0.0]))[0])
+
+    pixel_samples = np.zeros((n_doses, n_samples, 6))
+    noise = 0.005
+    for i, d in enumerate(doses):
+        post_r = float(KNOWN_RED.pixel(np.array([d]))[0])
+        post_g = float(KNOWN_GREEN.pixel(np.array([d]))[0])
+        post_b = float(KNOWN_BLUE.pixel(np.array([d]))[0])
+
+        mean = [pre_r, pre_g, pre_b, post_r, post_g, post_b]
+        # 6x6 covariance: pre-channels correlated with each other,
+        # post-channels correlated with each other, weak cross-correlation
+        cov = np.eye(6) * noise**2
+        cov[0:3, 0:3] += np.ones((3, 3)) * noise**2 * 0.3
+        cov[3:6, 3:6] += np.ones((3, 3)) * noise**2 * 0.3
+        np.fill_diagonal(cov, noise**2 * 1.5)
+
+        pixel_samples[i] = rng.multivariate_normal(mean, cov, size=n_samples)
+
+    return MultigaussianCalibration(doses=doses, pixel_samples=pixel_samples)
+
+
+class TestMultigaussian6Channel:
+    def test_6ch_calibration_construction(self) -> None:
+        mg_cal = _make_mg_calibration_6ch()
+        assert mg_cal.n_channels == 6
+        assert mg_cal.means.shape == (7, 6)
+
+    def test_6ch_solve(self) -> None:
+        """6-channel solver should produce valid dose map."""
+        mg_cal = _make_mg_calibration_6ch()
+        from chromadose.calibration import Calibration
+        cal = Calibration.from_arrays(
+            doses=CALIBRATION_DOSES,
+            red_pixels=KNOWN_RED.pixel(CALIBRATION_DOSES),
+            green_pixels=KNOWN_GREEN.pixel(CALIBRATION_DOSES),
+            blue_pixels=KNOWN_BLUE.pixel(CALIBRATION_DOSES),
+        )
+
+        dose_grid = np.array([[1.0, 3.0], [5.0, 7.0]])
+        film = FilmScan(
+            red=KNOWN_RED.pixel(dose_grid),
+            green=KNOWN_GREEN.pixel(dose_grid),
+            blue=KNOWN_BLUE.pixel(dose_grid),
+        )
+        # Pre-irradiation scan: dose=0 everywhere
+        zero = np.zeros_like(dose_grid)
+        pre_film = FilmScan(
+            red=KNOWN_RED.pixel(zero),
+            green=KNOWN_GREEN.pixel(zero),
+            blue=KNOWN_BLUE.pixel(zero),
+        )
+
+        solver = MultigaussianSolver(mg_cal)
+        result = solver.solve_6channel(film, pre_film, cal.result)
+
+        assert result.method == "multigaussian-6ch"
+        assert result.dose.shape == (2, 2)
+        # Should be in the right ballpark
+        np.testing.assert_allclose(result.dose, dose_grid, atol=1.0)
+
+    def test_6ch_rejects_3ch_calibration(self) -> None:
+        """solve_6channel should reject a 3-channel calibration."""
+        mg_cal = _make_mg_calibration()  # 3-channel
+        from chromadose.calibration import Calibration
+        cal = Calibration.from_arrays(
+            doses=CALIBRATION_DOSES,
+            red_pixels=KNOWN_RED.pixel(CALIBRATION_DOSES),
+            green_pixels=KNOWN_GREEN.pixel(CALIBRATION_DOSES),
+            blue_pixels=KNOWN_BLUE.pixel(CALIBRATION_DOSES),
+        )
+
+        film = FilmScan(
+            red=np.ones((2, 2)) * 0.1,
+            green=np.ones((2, 2)) * 0.1,
+            blue=np.ones((2, 2)) * 0.1,
+        )
+
+        solver = MultigaussianSolver(mg_cal)
+        try:
+            solver.solve_6channel(film, film, cal.result)
+            assert False, "Should have raised ValueError"
+        except ValueError as e:
+            assert "6-channel" in str(e)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chromadose"
-version = "0.1.0"
+version = "1.0.0"
 description = "Modern multichannel radiochromic film dosimetry"
 readme = "README.md"
 license = {text = "MIT"}
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["radiochromic", "dosimetry", "film", "multichannel", "medical physics", "radiotherapy"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Healthcare Industry",
     "License :: OSI Approved :: MIT License",

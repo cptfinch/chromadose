@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="chromadose",
         description="Modern multichannel radiochromic film dosimetry",
     )
-    parser.add_argument("--version", action="version", version="chromadose 0.1.0")
+    parser.add_argument("--version", action="version", version="chromadose 1.0.0")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

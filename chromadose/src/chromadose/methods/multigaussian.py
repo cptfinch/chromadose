@@ -37,7 +37,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 from scipy.interpolate import interp1d
-from scipy.optimize import minimize_scalar
 
 from chromadose.core.types import CalibrationResult, DoseMap, FilmScan
 
@@ -120,18 +119,20 @@ class MultigaussianCalibration:
         doses: NDArray[np.floating],
         films: list[FilmScan],
         rois: list[tuple[int, int, int, int]],
+        pre_films: list[FilmScan] | None = None,
     ) -> MultigaussianCalibration:
         """Build calibration from film scans and ROI definitions.
 
         Parameters:
             doses: Dose values in Gy, one per ROI.
-            films: List of FilmScan objects (can be one film with multiple ROIs).
+            films: Post-irradiation film scans.
             rois: List of (x, y, width, height) tuples for each dose level.
+            pre_films: Optional pre-irradiation scans. If provided, builds
+                a 6-channel calibration [R_pre, G_pre, B_pre, R_post, G_post, B_post].
 
         Returns:
-            MultigaussianCalibration with per-dose statistics.
+            MultigaussianCalibration with per-dose statistics (3 or 6 channels).
         """
-        n_channels = 3
         pixel_samples_list = []
 
         for i, (x, y, w, h) in enumerate(rois):
@@ -139,7 +140,16 @@ class MultigaussianCalibration:
             r_roi = film.red[y : y + h, x : x + w].flatten()
             g_roi = film.green[y : y + h, x : x + w].flatten()
             b_roi = film.blue[y : y + h, x : x + w].flatten()
-            samples = np.column_stack([r_roi, g_roi, b_roi])
+
+            if pre_films is not None:
+                pre = pre_films[i] if len(pre_films) > 1 else pre_films[0]
+                rp = pre.red[y : y + h, x : x + w].flatten()
+                gp = pre.green[y : y + h, x : x + w].flatten()
+                bp = pre.blue[y : y + h, x : x + w].flatten()
+                samples = np.column_stack([rp, gp, bp, r_roi, g_roi, b_roi])
+            else:
+                samples = np.column_stack([r_roi, g_roi, b_roi])
+
             pixel_samples_list.append(samples)
 
         # Pad to same number of samples (use smallest ROI size)
@@ -159,7 +169,7 @@ class MultigaussianSolver:
         self.mg_cal = mg_cal
 
     def solve(self, film: FilmScan, calibration: CalibrationResult) -> DoseMap:
-        """Convert scanned film to dose using Multigaussian MLE.
+        """Convert scanned film to dose using Multigaussian MLE (3-channel).
 
         Parameters:
             film: Scanned film with normalized RGB channels.
@@ -169,21 +179,16 @@ class MultigaussianSolver:
             DoseMap with Multigaussian-optimized dose.
         """
         d_min, d_max = calibration.dose_range
+        H, W = film.shape
 
         # Per-channel doses (for comparison / fallback)
-        dose_r = calibration.red.dose(film.red)
-        dose_g = calibration.green.dose(film.green)
-        dose_b = calibration.blue.dose(film.blue)
-
-        dose_r = np.clip(dose_r, 0, d_max * 1.5)
-        dose_g = np.clip(dose_g, 0, d_max * 1.5)
-        dose_b = np.clip(dose_b, 0, d_max * 1.5)
+        dose_r = np.clip(calibration.red.dose(film.red), 0, d_max * 1.5)
+        dose_g = np.clip(calibration.green.dose(film.green), 0, d_max * 1.5)
+        dose_b = np.clip(calibration.blue.dose(film.blue), 0, d_max * 1.5)
 
         # Vectorized Multigaussian dose estimation
-        dose_opt = self._solve_vectorized(film, d_min, d_max)
-
-        # Uncertainty: from the Mahalanobis distance at the optimal dose
-        uncertainty = self._compute_uncertainty(film, dose_opt)
+        pixels_flat = film.rgb.reshape(-1, 3)
+        dose_opt, uncertainty = self._solve_from_pixels(pixels_flat, H, W, d_min, d_max)
 
         return DoseMap(
             dose=dose_opt,
@@ -194,55 +199,127 @@ class MultigaussianSolver:
             method="multigaussian",
         )
 
-    def _solve_vectorized(
+    def solve_6channel(
         self,
         film: FilmScan,
+        pre_film: FilmScan,
+        calibration: CalibrationResult,
+    ) -> DoseMap:
+        """Convert scanned film to dose using 6-channel Multigaussian MLE.
+
+        Uses both pre-irradiation and post-irradiation scans for improved
+        accuracy. The response vector is [R_pre, G_pre, B_pre, R_post, G_post, B_post].
+
+        Parameters:
+            film: Post-irradiation film scan.
+            pre_film: Pre-irradiation film scan (same film, scanned before exposure).
+            calibration: Standard calibration (for dose range and per-channel comparison).
+
+        Returns:
+            DoseMap with 6-channel Multigaussian-optimized dose.
+        """
+        if self.mg_cal.n_channels != 6:
+            raise ValueError(
+                f"6-channel solve requires a 6-channel calibration, "
+                f"but calibration has {self.mg_cal.n_channels} channels"
+            )
+
+        d_min, d_max = calibration.dose_range
+        H, W = film.shape
+
+        dose_r = np.clip(calibration.red.dose(film.red), 0, d_max * 1.5)
+        dose_g = np.clip(calibration.green.dose(film.green), 0, d_max * 1.5)
+        dose_b = np.clip(calibration.blue.dose(film.blue), 0, d_max * 1.5)
+
+        # Stack 6-channel pixel array: [R_pre, G_pre, B_pre, R_post, G_post, B_post]
+        pixels_6ch = np.stack([
+            pre_film.red, pre_film.green, pre_film.blue,
+            film.red, film.green, film.blue,
+        ], axis=-1)  # (H, W, 6)
+        pixels_flat = pixels_6ch.reshape(-1, 6)
+
+        dose_opt, uncertainty = self._solve_from_pixels(pixels_flat, H, W, d_min, d_max)
+
+        return DoseMap(
+            dose=dose_opt,
+            uncertainty=uncertainty,
+            dose_r=dose_r,
+            dose_g=dose_g,
+            dose_b=dose_b,
+            method="multigaussian-6ch",
+        )
+
+    def _solve_from_pixels(
+        self,
+        pixels_flat: NDArray[np.floating],
+        H: int,
+        W: int,
         d_min: float,
         d_max: float,
-    ) -> NDArray[np.floating]:
-        """Solve for dose at every pixel using a grid search + refinement.
+    ) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+        """Solve for dose at every pixel — fully vectorized, no per-pixel loops.
+
+        Works with any number of channels (3 for RGB, 6 for pre+post).
 
         Strategy:
-        1. Evaluate the negative log-likelihood on a coarse dose grid
+        1. Evaluate NLL on a dense dose grid for ALL pixels simultaneously
         2. Find the best grid point per pixel
-        3. Refine with local parabolic interpolation
-        """
-        H, W = film.shape
-        rgb = film.rgb  # (H, W, 3)
-        rgb_flat = rgb.reshape(-1, 3)  # (N, 3)
-        N = rgb_flat.shape[0]
+        3. Vectorized parabolic interpolation from 3 neighboring grid points
+        4. Compute uncertainty from the same grid NLL curvature (free!)
 
-        # Coarse grid
-        n_grid = 50
+        Parameters:
+            pixels_flat: (N, n_channels) pixel values.
+            H, W: Image dimensions for reshaping output.
+            d_min, d_max: Dose search range.
+
+        Returns:
+            Tuple of (dose, uncertainty) each shape (H, W).
+        """
+        N = pixels_flat.shape[0]
+
+        # Dense grid for accuracy without per-pixel refinement
+        n_grid = 200
         dose_grid = np.linspace(d_min, d_max, n_grid)
+        grid_step = dose_grid[1] - dose_grid[0]
 
         # Evaluate NLL at each grid point for all pixels simultaneously
         nll = np.zeros((N, n_grid))
         for j, d in enumerate(dose_grid):
-            nll[:, j] = self._nll_batch(rgb_flat, d)
+            nll[:, j] = self._nll_batch(pixels_flat, d)
 
         # Find best grid point per pixel
-        best_idx = np.argmin(nll, axis=1)
-        dose_coarse = dose_grid[best_idx]
+        best_idx = np.argmin(nll, axis=1)  # (N,)
 
-        # Refine with golden section on a narrow interval around the best grid point
-        grid_step = (d_max - d_min) / n_grid
-        dose_refined = np.zeros(N)
+        # Vectorized parabolic interpolation from 3 neighboring points
+        # Clamp indices so we have valid left/right neighbors
+        idx_left = np.clip(best_idx - 1, 0, n_grid - 1)
+        idx_right = np.clip(best_idx + 1, 0, n_grid - 1)
 
-        # For efficiency, use parabolic interpolation from 3 neighboring grid points
-        for i in range(N):
-            idx = best_idx[i]
-            lo = max(d_min, dose_grid[max(0, idx - 1)])
-            hi = min(d_max, dose_grid[min(n_grid - 1, idx + 1)])
+        d_left = dose_grid[idx_left]
+        d_center = dose_grid[best_idx]
+        d_right = dose_grid[idx_right]
 
-            result = minimize_scalar(
-                lambda d, pixel=rgb_flat[i]: self._nll_single(pixel, d),
-                bounds=(lo, hi),
-                method="bounded",
-            )
-            dose_refined[i] = result.x
+        # NLL at the three points
+        pixel_idx = np.arange(N)
+        f_left = nll[pixel_idx, idx_left]
+        f_center = nll[pixel_idx, best_idx]
+        f_right = nll[pixel_idx, idx_right]
 
-        return dose_refined.reshape(H, W)
+        # Parabolic interpolation: vertex of parabola through 3 points
+        num = (d_right - d_left) * (f_right - f_left)
+        denom = 2.0 * (2.0 * f_center - f_left - f_right)
+        safe_denom = np.where(np.abs(denom) > 1e-20, denom, 1.0)
+        shift = np.where(np.abs(denom) > 1e-20, num / safe_denom, 0.0)
+        dose_refined = d_center - 0.5 * shift
+        dose_refined = np.clip(dose_refined, d_min, d_max)
+
+        # Uncertainty from NLL curvature at the 3 grid points (free — already computed)
+        # d²NLL/dD² ≈ (f_left - 2*f_center + f_right) / h²
+        d2nll = (f_left - 2.0 * f_center + f_right) / (grid_step ** 2)
+        d2nll = np.where(d2nll > 1e-10, d2nll, 1e-10)
+        uncertainty = np.sqrt(1.0 / d2nll)
+
+        return dose_refined.reshape(H, W), uncertainty.reshape(H, W)
 
     def _nll_batch(
         self,
@@ -269,56 +346,3 @@ class MultigaussianSolver:
 
         return mahal + log_det
 
-    def _nll_single(
-        self,
-        pixel: NDArray[np.floating],
-        dose: float,
-    ) -> float:
-        """Negative log-likelihood for a single pixel at a single dose."""
-        mu = self.mg_cal.mean_at(dose)
-        cov_inv = self.mg_cal.cov_inv_at(dose)
-        log_det = self.mg_cal.log_det_at(dose)
-
-        diff = pixel - mu
-        mahal = float(diff @ cov_inv @ diff)
-
-        return mahal + log_det
-
-    def _compute_uncertainty(
-        self,
-        film: FilmScan,
-        dose: NDArray[np.floating],
-    ) -> NDArray[np.floating]:
-        """Estimate per-pixel uncertainty from the curvature of the NLL.
-
-        The Fisher information at the MLE gives the variance:
-            var(D) ≈ 1 / (d²NLL/dD²)
-
-        We approximate this with a finite difference.
-        """
-        H, W = film.shape
-        rgb_flat = film.rgb.reshape(-1, 3)
-        dose_flat = dose.flatten()
-
-        delta_d = 0.01  # 10 mGy step for numerical derivative
-        nll_center = np.array([
-            self._nll_single(rgb_flat[i], dose_flat[i])
-            for i in range(len(dose_flat))
-        ])
-        nll_plus = np.array([
-            self._nll_single(rgb_flat[i], dose_flat[i] + delta_d)
-            for i in range(len(dose_flat))
-        ])
-        nll_minus = np.array([
-            self._nll_single(rgb_flat[i], max(0, dose_flat[i] - delta_d))
-            for i in range(len(dose_flat))
-        ])
-
-        # Second derivative (curvature)
-        d2nll = (nll_plus - 2 * nll_center + nll_minus) / delta_d**2
-
-        # Variance = 1/curvature, uncertainty = sqrt(variance)
-        d2nll = np.where(d2nll > 1e-10, d2nll, 1e-10)
-        uncertainty = np.sqrt(1.0 / d2nll)
-
-        return uncertainty.reshape(H, W)
