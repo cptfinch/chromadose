@@ -1,5 +1,11 @@
 # chromadose
 
+[![PyPI](https://img.shields.io/pypi/v/chromadose.svg)](https://pypi.org/project/chromadose/)
+[![Python](https://img.shields.io/pypi/pyversions/chromadose.svg)](https://pypi.org/project/chromadose/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://cptfinch.github.io/chromadose/)
+[![Status](https://img.shields.io/pypi/status/chromadose.svg)](https://pypi.org/project/chromadose/)
+
 Modern multichannel radiochromic film dosimetry in Python.
 
 **chromadose** implements all major multichannel film dosimetry methods in one library, with built-in uncertainty estimation, gamma analysis, and PDF reporting.
