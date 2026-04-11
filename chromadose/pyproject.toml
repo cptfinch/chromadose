@@ -10,7 +10,10 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [
-    {name = "chromadose contributors"},
+    {name = "Christopher Finch", email = "cptfinch@gmail.com"},
+]
+maintainers = [
+    {name = "Christopher Finch", email = "cptfinch@gmail.com"},
 ]
 keywords = ["radiochromic", "dosimetry", "film", "multichannel", "medical physics", "radiotherapy"]
 classifiers = [
@@ -50,7 +53,10 @@ docs = [
 chromadose = "chromadose.cli:main"
 
 [project.urls]
+Homepage = "https://github.com/cptfinch/chromadose"
 Repository = "https://github.com/cptfinch/chromadose"
+Issues = "https://github.com/cptfinch/chromadose/issues"
+Changelog = "https://github.com/cptfinch/chromadose/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
