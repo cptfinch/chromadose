@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import matplotlib
+
 matplotlib.use("Agg")  # non-interactive backend for report generation
 
 import matplotlib.pyplot as plt
@@ -25,7 +26,7 @@ from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from chromadose.analysis.gamma import GammaResult
-    from chromadose.analysis.profiles import DoseProfile, ProfileComparison
+    from chromadose.analysis.profiles import ProfileComparison
     from chromadose.core.types import DoseMap
 
 

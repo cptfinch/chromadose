@@ -12,9 +12,7 @@ Uses argparse (stdlib) to avoid extra dependencies.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-from pathlib import Path
 
 import numpy as np
 
@@ -87,7 +85,6 @@ def _cmd_calibrate(args: argparse.Namespace) -> int:
     """Run the calibrate command."""
     from chromadose.calibration import Calibration
     from chromadose.core.image import load_tiff
-    from chromadose.core.utils import roi_mean
 
     films = [load_tiff(f) for f in args.films]
     doses = np.array(args.doses)
