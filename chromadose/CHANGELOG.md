@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-04-11
+
+Polish release. No new features — tightens the type-checking gate, cleans up
+PyPI metadata, and adds CI coverage for mypy.
+
+### Added
+- `Documentation` URL in PyPI metadata pointing at the live mkdocs site
+- mypy strict type-check step in the CI workflow (runs on Python 3.11/3.12/3.13)
+- mypy overrides for scipy, matplotlib, tifffile, and pydicom (treated as
+  untyped to avoid missing-stub noise)
+
+### Changed
+- `warn_return_any` disabled globally: numpy's typing surface returns `Any`
+  from most array operations, which fights with strict mode on every
+  function that returns an `NDArray`
+- `chromadose.calibration.Calibration.plot_curves` now imports `Axes` and
+  `Figure` from `matplotlib.axes` / `matplotlib.figure` directly, rather
+  than relying on the runtime `plt.Axes` / `plt.Figure` aliases
+- `tight_layout(rect=[...])` calls in `io/report.py` use tuple literals
+  to match the typed signature
+
+### Fixed
+- `core.image._extract_dpi` now narrows `tif.pages[0]` to `TiffPage` via
+  isinstance — `TiffFrame` doesn't carry `.tags`
+- `methods.ann` casts `rng.integers(...)` to `int` before passing as seed;
+  `NDArray` annotations in the L-BFGS-B inner closure now specify the
+  element type
+- `analysis.registration.cost` annotates its `params` argument with the
+  numpy element type
+
 ## [0.9.0] — 2026-04-11
 
 First public release on PyPI. Version `0.9.0` is a release candidate for

@@ -166,7 +166,7 @@ class ANNCalibration:
         doses_norm = doses / self._dose_scale
 
         for i in range(self.n_ensemble):
-            seed_i = rng.integers(0, 2**31)
+            seed_i = int(rng.integers(0, 2**31))
             weights = ANNWeights.random_init(n_input=3, n_hidden=self.n_hidden, seed=seed_i)
 
             # Bootstrap sampling for diversity
@@ -176,7 +176,9 @@ class ANNCalibration:
             d_boot = doses_norm[idx]
 
             # L-BFGS-B optimization
-            def loss_and_grad(vec: NDArray) -> tuple[float, NDArray]:
+            def loss_and_grad(
+                vec: NDArray[np.floating],
+            ) -> tuple[float, NDArray[np.floating]]:
                 w = ANNWeights.from_vector(vec, n_input=3, n_hidden=self.n_hidden)
                 pred = _forward(px_boot, w)
                 residual = pred - d_boot

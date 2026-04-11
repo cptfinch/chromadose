@@ -111,7 +111,7 @@ def register_auto(
     thresh = dose_threshold_pct / 100.0 * np.max(reference)
     mask = reference >= thresh
 
-    def cost(params: NDArray) -> float:
+    def cost(params: NDArray[np.floating]) -> float:
         dx_px, dy_px, angle = params
         transformed = apply_rigid_transform(evaluated, dx_px, dy_px, angle)
         diff = (reference - transformed)[mask]

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chromadose"
-version = "0.9.0"
+version = "0.9.1"
 description = "Modern multichannel radiochromic film dosimetry"
 readme = "README.md"
 license = {text = "MIT"}
@@ -54,6 +54,7 @@ chromadose = "chromadose.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/cptfinch/chromadose"
+Documentation = "https://cptfinch.github.io/chromadose/"
 Repository = "https://github.com/cptfinch/chromadose"
 Issues = "https://github.com/cptfinch/chromadose/issues"
 Changelog = "https://github.com/cptfinch/chromadose/blob/main/CHANGELOG.md"
@@ -78,8 +79,24 @@ ignore = ["N803", "N806"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-warn_return_any = true
+# numpy-heavy scientific code: numpy's typing surface returns `Any` in many
+# places (array ops, reductions, indexing). Strict `warn_return_any` fights
+# with this on every function that returns an NDArray. Disable globally;
+# the rest of strict mode (untyped defs, optional checks, etc.) still runs.
+warn_return_any = false
 warn_unused_configs = true
+
+# Third-party libraries without complete type stubs. Treat as untyped so
+# attribute access and calls don't generate noise — doesn't disable type
+# checking on our own code.
+[[tool.mypy.overrides]]
+module = [
+    "scipy.*",
+    "matplotlib.*",
+    "tifffile",
+    "pydicom.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

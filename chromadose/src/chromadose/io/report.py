@@ -136,8 +136,8 @@ def _page_dose_map(
         bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.8),
     )
 
-    plt.tight_layout(rect=[0, 0.08, 1, 0.92])
-    pdf.savefig(fig)
+    plt.tight_layout(rect=(0, 0.08, 1, 0.92))
+    pdf.savefig(fig)  # type: ignore[no-untyped-call]
     plt.close(fig)
 
 
@@ -179,8 +179,8 @@ def _page_gamma(
         bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.8),
     )
 
-    plt.tight_layout(rect=[0, 0.08, 1, 0.93])
-    pdf.savefig(fig)
+    plt.tight_layout(rect=(0, 0.08, 1, 0.93))
+    pdf.savefig(fig)  # type: ignore[no-untyped-call]
     plt.close(fig)
 
 
@@ -215,6 +215,6 @@ def _page_profiles(
         )
         ax.grid(True, alpha=0.3)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
-    pdf.savefig(fig)
+    plt.tight_layout(rect=(0, 0, 1, 0.93))
+    pdf.savefig(fig)  # type: ignore[no-untyped-call]
     plt.close(fig)

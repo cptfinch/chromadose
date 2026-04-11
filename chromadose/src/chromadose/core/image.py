@@ -108,6 +108,9 @@ def _extract_dpi(tif: tifffile.TiffFile) -> float:
     """Extract DPI from TIFF metadata. Defaults to 72 if not found."""
     try:
         page = tif.pages[0]
+        # Only TiffPage carries .tags — TiffFrame is a lightweight view.
+        if not isinstance(page, tifffile.TiffPage):
+            return 72.0
         tags = page.tags
         # Check for XResolution tag (tag 282)
         if "XResolution" in tags:

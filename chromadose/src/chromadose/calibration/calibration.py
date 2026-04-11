@@ -7,6 +7,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from chromadose.calibration.curves import fit_all_channels, rational_function
@@ -109,12 +111,16 @@ class Calibration:
         )
         return cal
 
-    def plot_curves(self, ax: plt.Axes | None = None) -> plt.Figure:
+    def plot_curves(self, ax: Axes | None = None) -> Figure:
         """Plot calibration data points and fitted curves."""
         if ax is None:
             fig, ax = plt.subplots(figsize=(8, 5))
         else:
-            fig = ax.get_figure()
+            parent = ax.get_figure()
+            # ax.get_figure() returns Figure | SubFigure | None; narrow to Figure.
+            if not isinstance(parent, Figure):
+                raise TypeError("Axes must belong to a top-level Figure, not a SubFigure")
+            fig = parent
 
         doses = self.cal_data.doses
         pixels = self.cal_data.pixel_values
