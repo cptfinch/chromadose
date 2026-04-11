@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-04-11
+
+First public release on PyPI. Version `0.9.0` is a release candidate for
+`1.0.0`; the major bump is reserved for the peer-reviewed publication and
+clinical validation study.
+
 ### Added
+- Initial public release
 - `DISCLAIMER.md` — research-use-only / not-a-medical-device statement
 - `SECURITY.md` — vulnerability and numerical-defect reporting policy
 - `CONTRIBUTING.md` — contributor guide
@@ -15,11 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CHANGELOG.md` — this file
 - README disclaimer banner linking to DISCLAIMER.md
 - Module docstring disclaimer in `chromadose/__init__.py`
-
-## [1.0.0] — 2026
-
-### Added
-- Initial public release
+- `justfile` with dev, film-analysis, docs, and release recipes
 - Four multichannel film dosimetry methods:
   - **Micke** (Micke, Lewis, Yu 2011) — Newton refinement
   - **Mayer** (Mayer et al. 2012) — analytical optimisation with disturbance correction
