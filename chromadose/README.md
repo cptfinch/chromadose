@@ -2,6 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/chromadose.svg)](https://pypi.org/project/chromadose/)
 [![Python](https://img.shields.io/pypi/pyversions/chromadose.svg)](https://pypi.org/project/chromadose/)
+[![CI](https://github.com/cptfinch/chromadose/actions/workflows/ci.yml/badge.svg)](https://github.com/cptfinch/chromadose/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://cptfinch.github.io/chromadose/)
 [![Status](https://img.shields.io/pypi/status/chromadose.svg)](https://pypi.org/project/chromadose/)
