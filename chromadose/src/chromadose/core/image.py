@@ -74,8 +74,6 @@ def _array_to_film_scan(data: NDArray, dpi: float) -> FilmScan:  # type: ignore[
         return FilmScan(red=normalized, green=normalized, blue=normalized, dpi=dpi)
 
     if data.ndim == 3:
-        n_channels = data.shape[2] if data.shape[2] <= 4 else data.shape[0]
-
         if data.shape[2] <= 4:
             # (H, W, C) layout — standard
             red = _normalize(data[:, :, 0])

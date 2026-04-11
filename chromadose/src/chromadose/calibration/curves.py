@@ -105,7 +105,6 @@ def _initial_guess(
     - t controls the transition steepness
     """
     sort_idx = np.argsort(doses)
-    sorted_doses = doses[sort_idx]
     sorted_pixels = pixel_values[sort_idx]
 
     pixel_at_zero = sorted_pixels[0]  # unexposed

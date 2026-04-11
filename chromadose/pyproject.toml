@@ -57,15 +57,17 @@ where = ["src"]
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
-
-[tool.ruff.lint.per-file-ignores]
-# Scientific modules use uppercase notation (H, W, N) for image dimensions
-# and batch sizes — standard numpy/linear-algebra convention, not a bug.
-"src/chromadose/methods/*.py" = ["N803", "N806"]
+# Scientific/numeric Python uses uppercase variable and argument names
+# (H, W, N, D, RS, ...) for image dimensions, batch sizes, and matrix
+# notation — it's the convention from numpy, linear algebra, and the
+# physics/ML literature, not a style bug. Drop the two pep8-naming
+# rules that fight with this; keep the rest (class names, function
+# names, etc. still get checked).
+ignore = ["N803", "N806"]
 
 [tool.mypy]
 python_version = "3.11"
