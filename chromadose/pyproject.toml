@@ -62,6 +62,11 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+# Scientific modules use uppercase notation (H, W, N) for image dimensions
+# and batch sizes — standard numpy/linear-algebra convention, not a bug.
+"src/chromadose/methods/*.py" = ["N803", "N806"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

@@ -22,7 +22,6 @@ clinical validation study.
 - `CHANGELOG.md` — this file
 - README disclaimer banner linking to DISCLAIMER.md
 - Module docstring disclaimer in `chromadose/__init__.py`
-- `justfile` with dev, film-analysis, docs, and release recipes
 - Four multichannel film dosimetry methods:
   - **Micke** (Micke, Lewis, Yu 2011) — Newton refinement
   - **Mayer** (Mayer et al. 2012) — analytical optimisation with disturbance correction
