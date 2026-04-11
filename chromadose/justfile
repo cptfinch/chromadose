@@ -1,0 +1,85 @@
+# chromadose — multichannel radiochromic film dosimetry
+# Run `just` or `just --list` to see all commands.
+# All recipes run from the package root (directory containing this file).
+
+set quiet
+set shell := ["bash", "-c"]
+
+# Show all available commands
+default:
+    @just --list
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Development
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Run test suite
+test *args='':
+    uv run pytest {{args}}
+
+# Run tests with coverage
+test-cov:
+    uv run pytest --cov=chromadose --cov-report=term-missing
+
+# Lint with ruff
+lint:
+    uv run ruff check src/
+
+# Type check with mypy
+typecheck:
+    uv run mypy src/chromadose/
+
+# Install in development mode
+install:
+    uv pip install -e ".[dev,dicom]"
+
+# Run lint + typecheck + tests (mirrors CI)
+check: lint typecheck test
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Film Analysis Workflows
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Calibrate from scanned film strips and known doses
+calibrate tiff_file doses_csv method='micke':
+    uv run chromadose calibrate {{tiff_file}} --doses {{doses_csv}} --method {{method}}
+
+# Analyze a film scan using an existing calibration
+analyze tiff_file calibration_file method='micke':
+    uv run chromadose analyze {{tiff_file}} --calibration {{calibration_file}} --method {{method}}
+
+# Run gamma analysis between reference and evaluation dose maps
+gamma reference evaluation criteria='3,3':
+    uv run chromadose gamma {{reference}} {{evaluation}} --criteria {{criteria}}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Documentation
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Serve documentation locally
+docs-serve:
+    uv run mkdocs serve
+
+# Build documentation
+docs-build:
+    uv run mkdocs build
+
+# Deploy docs to GitHub Pages
+docs-deploy:
+    uv run mkdocs gh-deploy
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Release
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Build source + wheel distributions into dist/
+build:
+    uv build
+
+# Publish to PyPI (requires UV_PUBLISH_TOKEN or interactive credentials)
+publish: build
+    uv publish
+
+# Clean build artifacts
+clean:
+    rm -rf dist build *.egg-info
