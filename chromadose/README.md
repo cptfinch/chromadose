@@ -4,6 +4,14 @@ Modern multichannel radiochromic film dosimetry in Python.
 
 **chromadose** implements all major multichannel film dosimetry methods in one library, with built-in uncertainty estimation, gamma analysis, and PDF reporting.
 
+> ⚠️ **Research use only — not a medical device.** chromadose is open-source
+> software for academic research and method development in radiochromic film
+> dosimetry. It is **not** intended for diagnosis, treatment planning, or
+> clinical decision-making, and has not been evaluated by the FDA, MHRA, or
+> any Notified Body under EU MDR. Clinical use is the sole responsibility of
+> a qualified medical physicist operating under their institution's QA
+> programme. See [DISCLAIMER.md](DISCLAIMER.md) for the full statement.
+
 ## Methods
 
 | Method | Reference | Description |
