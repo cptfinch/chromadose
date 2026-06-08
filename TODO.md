@@ -2,7 +2,7 @@
 
 ## Current state
 
-🟢 MVP → v1.0.0 released. Strong code quality, 4 methods, 92 tests. Primary gap is clinical validation and publication — without a peer-reviewed paper, clinical adoption is blocked.
+🟡 **v0.9.1 released on PyPI** (2026-04-11). Strong code quality, 4 methods, 92 tests, docs deployed, CI green. **Not yet v1.0.0** — that release is gated on clinical validation + a peer-reviewed paper. Without those, clinical adoption is blocked.
 
 **What exists (chromadose/src/chromadose/):**
 - 4 multichannel dosimetry methods: Micke, Mayer, Multigaussian (MLE), ANN
@@ -37,9 +37,8 @@
 **What best-in-class still needs:**
 1. Peer-reviewed publication (clinical adoption gate)
 2. Clinical validation on 10-15 cases
-3. PyPI publication (`pip install chromadose`)
-4. Pre-trained ANN weights for common scanner/film configs
-5. AAPM conference presence
+3. Pre-trained ANN weights for common scanner/film configs
+4. AAPM conference presence
 
 ## Gap analysis
 
@@ -48,23 +47,23 @@
 | Methods | ✅ All 4 implemented | + Pre-trained ANN weights, FLASH mode |
 | Tests | ✅ 92 tests | + Clinical validation dataset |
 | DICOM | ✅ RT Dose import | + RT Dose export, DICOM SR |
-| Docs | ✅ mkdocs site | + Deploy live, example notebooks |
+| Docs | ✅ Deployed (cptfinch.github.io/chromadose) | + Example notebooks |
 | Publication | ❌ None | Peer-reviewed paper in J. Appl. Clin. Med. Phys. |
-| PyPI | ❌ Not published | `pip install chromadose` |
+| PyPI | ✅ Published v0.9.1 | v1.0.0 after clinical validation |
 | Clinical validation | ❌ None | 10-15 IMRT/VMAT/SRS cases vs TPS |
 | Pre-trained models | ❌ None | ANN weights for EBT3/EBT4 + common scanners |
 | Community | ❌ None | GitHub stars, AAPM forum post, citation |
 
 ## Milestones
 
-### M1 — Publish to PyPI (1 day — do this first)
-- [ ] `uv build && uv publish` — pyproject.toml metadata already correct
-- [ ] Verify: `pip install chromadose` works from clean environment
-- [ ] Add PyPI badge to README
+### M1 — Publish to PyPI ✅ DONE (2026-04-11, v0.9.0 / v0.9.1)
+- [x] `uv build && uv publish`
+- [x] Verify: `pip install chromadose` works from clean environment
+- [x] Add PyPI badge to README
 - [ ] Post to AAPM medical physics Slack/forum: "First open-source Multigaussian film dosimetry"
 
-### M2 — Deploy documentation site (1 week)
-- [ ] Deploy mkdocs-material site to GitHub Pages
+### M2 — Deploy documentation site ✅ DONE (live at cptfinch.github.io/chromadose)
+- [x] Deploy mkdocs-material site to GitHub Pages
 - [ ] Add live examples (rendered Jupyter notebooks via nbconvert)
 - [ ] Add installation + quick-start as first page
 - [ ] Add method comparison page (Micke vs Mayer vs Multigaussian vs ANN — accuracy, speed, use cases)
@@ -100,13 +99,13 @@
 - [ ] Batch processing CLI: `chromadose batch-qa *.tif --cal calibration.json --ref tps.dcm`
 - [ ] IEC 61217 geometry metadata support (couch angles, gantry, collimator)
 
-## Immediate next tasks
+## Immediate next tasks (path to v1.0.0)
 
-1. **Publish to PyPI** — single command, everything is ready
-2. **Deploy mkdocs docs site** — GitHub Pages, one push
-3. **Post announcement** — AAPM forum + medical physics Slack + LinkedIn
-4. **Contact a proton therapy centre** (IBA connection is a direct in) — propose clinical validation collaboration
-5. **Write the paper abstract** — stake the claim on open-source Multigaussian
+1. **Post announcement** — AAPM forum + medical physics Slack + LinkedIn (cheapest open task; v0.9.1 is live on PyPI)
+2. **Contact a proton therapy centre** (IBA connection is a direct in) — propose clinical validation collaboration
+3. **Write the paper abstract** — stake the claim on open-source Multigaussian
+4. **Run clinical validation study (M3)** — produces the data for the paper
+5. **Submit JACMP paper (M4)** — peer review unblocks v1.0.0 and clinical adoption
 
 ## Notes
 
