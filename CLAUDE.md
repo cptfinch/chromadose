@@ -25,8 +25,8 @@ chromadose/                 # package root — cd here for all dev commands
   tests/                    # pytest
   docs/                     # mkdocs-material site
   pyproject.toml, uv.lock
-TODO.md                     # historical roadmap snapshot — live roadmap is in GitHub Issues
-CHROMADOSE_DESIGN.md        # architecture
+TODO.md                     # frozen historical snapshot — live roadmap is GitHub Issues
+DESIGN.md                   # architecture
 LITERATURE_REVIEW.md        # film dosimetry literature survey
 OPEN_SOURCE_ANALYSIS.md     # competitive landscape
 flake.nix / flake.lock      # nix dev shell

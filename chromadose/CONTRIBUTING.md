@@ -80,7 +80,7 @@ Good first issues are labelled `good first issue` on GitHub.
 
 ## Areas where help is especially welcome
 
-See [TODO.md](TODO.md) for the full roadmap. High-impact areas:
+See the [GitHub Issues](https://github.com/cptfinch/chromadose/issues) and [milestones](https://github.com/cptfinch/chromadose/milestones) for the live roadmap. High-impact areas:
 
 - **Clinical validation data** — anonymised IMRT/VMAT/SRS films vs
   TPS reference dose, for the validation publication (M3)
