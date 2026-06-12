@@ -13,7 +13,7 @@ clinical-use claims.
 
 ```bash
 git clone https://github.com/cptfinch/chromadose
-cd chromadose
+cd chromadose/chromadose   # the installable package lives one level down
 uv sync                    # installs the project + dev deps
 uv run pytest -q           # 92 tests should pass
 uv run mypy src            # strict type checks
@@ -22,6 +22,13 @@ uv run mkdocs serve        # preview the docs site
 ```
 
 Python 3.11+ is required.
+
+## Project layout
+
+The repo root holds research data, notebooks, and design docs
+([`DESIGN.md`](../DESIGN.md) — architecture). The **installable package**
+(`pyproject.toml`, `src/`, `tests/`, `docs/`) lives in the repo's
+`chromadose/` subdirectory — **run all dev commands from there.**
 
 ## How to contribute
 
