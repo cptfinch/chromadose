@@ -5,6 +5,7 @@ Usage:
     chromadose solve --film treatment.tif --cal cal.json --method micke -o dose.npy
     chromadose gamma --measured dose.npy --reference tps_dose.npy --criteria 3/3
     chromadose report --measured dose.npy --gamma gamma.npz -o report.pdf
+    chromadose batch-qa *.tif --cal cal.json --ref tps.dcm --criteria 3/3
 
 Uses argparse (stdlib) to avoid extra dependencies.
 """
@@ -13,8 +14,18 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
+
+from chromadose import __version__
+
+# Methods wired into the simple file-based CLI. Multigaussian and ANN require
+# dedicated calibration objects (MultigaussianCalibration / ANNCalibration)
+# rather than the rational-function fit stored in a calibration JSON, so they
+# are only available through the Python API, not the CLI.
+_CLI_METHODS = ["micke", "mayer"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -23,7 +34,9 @@ def main(argv: list[str] | None = None) -> int:
         prog="chromadose",
         description="Modern multichannel radiochromic film dosimetry",
     )
-    parser.add_argument("--version", action="version", version="chromadose 1.0.0")
+    parser.add_argument(
+        "--version", action="version", version=f"chromadose {__version__}"
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -38,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     solve_parser = subparsers.add_parser("solve", help="Convert scanned film to dose")
     solve_parser.add_argument("--film", required=True, help="Treatment film TIFF file")
     solve_parser.add_argument("--cal", required=True, help="Calibration JSON file")
-    solve_parser.add_argument("--method", default="micke", choices=["micke", "mayer", "multigaussian"],
+    solve_parser.add_argument("--method", default="micke", choices=_CLI_METHODS,
                               help="Dose solving method")
     solve_parser.add_argument("-o", "--output", default="dose.npy", help="Output dose file (.npy)")
     solve_parser.add_argument("--plot", action="store_true", help="Show dose map plot")
@@ -63,6 +76,22 @@ def main(argv: list[str] | None = None) -> int:
     report_parser.add_argument("--plan", default="", help="Plan name")
     report_parser.add_argument("-o", "--output", default="report.pdf", help="Output PDF file")
 
+    # --- batch-qa ---
+    batch_parser = subparsers.add_parser(
+        "batch-qa",
+        help="Solve many films and (optionally) gamma-compare each against a reference",
+    )
+    batch_parser.add_argument("films", nargs="+", help="Treatment film TIFF files")
+    batch_parser.add_argument("--cal", required=True, help="Calibration JSON file")
+    batch_parser.add_argument("--method", default="micke", choices=_CLI_METHODS,
+                              help="Dose solving method")
+    batch_parser.add_argument("--ref", help="Shared reference dose (.npy or DICOM RT Dose)")
+    batch_parser.add_argument("--criteria", default="3/3", help="Dose%%/DTA(mm) for gamma, e.g. '3/3'")
+    batch_parser.add_argument("--threshold", type=float, default=10.0, help="Gamma dose threshold (%%)")
+    batch_parser.add_argument("--pixel-size", type=float, default=1.0,
+                              help="Film pixel size in mm (used for gamma and DICOM resampling)")
+    batch_parser.add_argument("--outdir", default="batch_qa_out", help="Output directory")
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -77,6 +106,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_gamma(args)
     elif args.command == "report":
         return _cmd_report(args)
+    elif args.command == "batch-qa":
+        return _cmd_batch_qa(args)
 
     return 0
 
@@ -213,6 +244,89 @@ def _cmd_report(args: argparse.Namespace) -> int:
     )
     print(f"Report saved to {args.output}")
     return 0
+
+
+def _load_reference(
+    path: str, film_shape: tuple[int, int], pixel_size_mm: float
+) -> NDArray[np.floating]:
+    """Load a reference dose as a 2D array matching the film grid.
+
+    Accepts either a NumPy ``.npy`` file (assumed already on the film grid)
+    or a DICOM RT Dose file (resampled to the film grid via bilinear
+    interpolation). DICOM volumes use their maximum-dose slice.
+    """
+    p = Path(path)
+    if p.suffix.lower() == ".npy":
+        return np.load(p)
+
+    from chromadose.io.dicom import load_dicom_dose, resample_to_film
+
+    rt_dose = load_dicom_dose(p)
+    slice_index, _ = rt_dose.max_dose_slice()
+    return resample_to_film(rt_dose, film_shape, pixel_size_mm, slice_index)
+
+
+def _cmd_batch_qa(args: argparse.Namespace) -> int:
+    """Run the batch-qa command over many films with a shared calibration."""
+    from chromadose.analysis.gamma import gamma_2d
+    from chromadose.calibration import Calibration
+    from chromadose.core.image import load_tiff
+    from chromadose.methods import get_solver
+
+    dose_crit, dta_crit = (float(x) for x in args.criteria.split("/"))
+
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    cal = Calibration.load(args.cal)
+    solver = get_solver(args.method)()
+
+    summary_lines = ["film,max_dose_Gy,mean_dose_Gy,gamma_pass_rate_pct"]
+    failures = 0
+
+    for film_path in args.films:
+        name = Path(film_path).stem
+        try:
+            film = load_tiff(film_path)
+            result = solver.solve(film, cal.result)
+        except Exception as exc:  # noqa: BLE001 — report and continue the batch
+            print(f"[FAIL] {film_path}: {exc}", file=sys.stderr)
+            summary_lines.append(f"{name},,,")
+            failures += 1
+            continue
+
+        dose_out = outdir / f"{name}_dose.npy"
+        np.save(dose_out, result.dose)
+
+        pass_rate_str = ""
+        pass_rate_pct = ""
+        if args.ref:
+            reference = _load_reference(args.ref, result.dose.shape, args.pixel_size)
+            gamma = gamma_2d(
+                reference, result.dose,
+                dose_criteria=dose_crit,
+                distance_criteria_mm=dta_crit,
+                pixel_size_mm=args.pixel_size,
+                dose_threshold_pct=args.threshold,
+            )
+            np.save(outdir / f"{name}_gamma.npy", gamma.gamma_map)
+            pass_rate_pct = f"{gamma.pass_rate * 100:.1f}"
+            pass_rate_str = f"  gamma {gamma.criteria}: {pass_rate_pct}% pass"
+
+        print(
+            f"[ OK ] {name}: max {np.max(result.dose):.3f} Gy, "
+            f"mean {np.mean(result.dose):.3f} Gy{pass_rate_str}"
+        )
+        summary_lines.append(
+            f"{name},{np.max(result.dose):.4f},{np.mean(result.dose):.4f},{pass_rate_pct}"
+        )
+
+    summary_path = outdir / "summary.csv"
+    summary_path.write_text("\n".join(summary_lines) + "\n")
+
+    n_ok = len(args.films) - failures
+    print(f"\nProcessed {n_ok}/{len(args.films)} films -> {outdir}/ (summary.csv)")
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
