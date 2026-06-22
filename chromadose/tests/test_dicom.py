@@ -1,13 +1,19 @@
 """Tests for the DICOM RT Dose module.
 
-Since pydicom may not be available in all environments and we don't want
-to depend on actual DICOM files, we test the RTDose dataclass and the
-resample_to_film function with synthetic data.
+The RTDose dataclass and resample_to_film are tested with synthetic data and
+need no DICOM files. The import/export round-trip tests require pydicom and are
+skipped when it is unavailable.
 """
 
-import numpy as np
+import importlib.util
 
-from chromadose.io.dicom import RTDose, resample_to_film
+import numpy as np
+import pytest
+
+from chromadose.io.dicom import RTDose, load_dicom_dose, resample_to_film, save_dicom_dose
+
+_HAS_PYDICOM = importlib.util.find_spec("pydicom") is not None
+requires_pydicom = pytest.mark.skipif(not _HAS_PYDICOM, reason="pydicom not installed")
 
 
 class TestRTDose:
@@ -95,3 +101,52 @@ class TestResampleToFilm:
         diffs = np.diff(col)
         # All differences should be positive (increasing)
         assert np.all(diffs > -0.1)
+
+
+@requires_pydicom
+class TestSaveDicomDose:
+    def test_roundtrip_2d(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """A 2D dose saved and reloaded should match within scaling precision."""
+        rng = np.random.default_rng(0)
+        dose = rng.random((25, 40)) * 6.0
+        out = tmp_path / "dose.dcm"
+
+        save_dicom_dose(
+            dose, out,
+            pixel_spacing_mm=(0.5, 0.5),
+            patient_name="Film QA",
+            patient_id="QA001",
+            plan_label="VMAT",
+        )
+
+        rt = load_dicom_dose(out)
+        assert rt.n_slices == 1
+        assert rt.pixel_spacing_mm == (0.5, 0.5)
+        # uint32 scaling -> effectively lossless at Gy scale.
+        np.testing.assert_allclose(rt.slice_2d(0), dose, atol=1e-5)
+        assert str(rt.patient_name) == "Film QA"
+        assert rt.plan_label == "VMAT"
+
+    def test_roundtrip_3d(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """A 3D dose volume should round-trip with all slices preserved."""
+        rng = np.random.default_rng(1)
+        dose = rng.random((4, 10, 12)) * 3.0
+        out = tmp_path / "vol.dcm"
+
+        save_dicom_dose(dose, out, slice_spacing_mm=2.0)
+
+        rt = load_dicom_dose(out)
+        assert rt.shape == (4, 10, 12)
+        np.testing.assert_allclose(rt.dose, dose, atol=1e-5)
+
+    def test_zero_dose(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """An all-zero dose must not divide by zero and round-trips to zero."""
+        out = tmp_path / "zero.dcm"
+        save_dicom_dose(np.zeros((8, 8)), out)
+        rt = load_dicom_dose(out)
+        np.testing.assert_array_equal(rt.slice_2d(0), np.zeros((8, 8)))
+
+    def test_invalid_ndim(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """A 1D array should raise ValueError."""
+        with pytest.raises(ValueError, match="2D or 3D"):
+            save_dicom_dose(np.zeros(5), tmp_path / "bad.dcm")

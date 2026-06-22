@@ -6,6 +6,7 @@ Usage:
     chromadose gamma --measured dose.npy --reference tps_dose.npy --criteria 3/3
     chromadose report --measured dose.npy --gamma gamma.npz -o report.pdf
     chromadose batch-qa *.tif --cal cal.json --ref tps.dcm --criteria 3/3
+    chromadose export-dicom --dose dose.npy --pixel-size 0.353 -o dose.dcm
 
 Uses argparse (stdlib) to avoid extra dependencies.
 """
@@ -96,6 +97,17 @@ def main(argv: list[str] | None = None) -> int:
                               help="Film pixel size in mm (used for gamma and DICOM resampling)")
     batch_parser.add_argument("--outdir", default="batch_qa_out", help="Output directory")
 
+    # --- export-dicom ---
+    export_parser = subparsers.add_parser(
+        "export-dicom", help="Export a dose map (.npy) to a DICOM RT Dose file"
+    )
+    export_parser.add_argument("--dose", required=True, help="Dose map (.npy), in Gy")
+    export_parser.add_argument("--pixel-size", type=float, default=1.0, help="Pixel size in mm")
+    export_parser.add_argument("--patient", default="", help="Patient name")
+    export_parser.add_argument("--patient-id", default="", help="Patient ID")
+    export_parser.add_argument("--plan", default="", help="RT Plan label")
+    export_parser.add_argument("-o", "--output", default="dose.dcm", help="Output DICOM file")
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -112,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_report(args)
     elif args.command == "batch-qa":
         return _cmd_batch_qa(args)
+    elif args.command == "export-dicom":
+        return _cmd_export_dicom(args)
 
     return 0
 
@@ -358,6 +372,25 @@ def _cmd_batch_qa(args: argparse.Namespace) -> int:
     n_ok = len(args.films) - failures
     print(f"\nProcessed {n_ok}/{len(args.films)} films -> {outdir}/ (summary.csv)")
     return 1 if failures else 0
+
+
+def _cmd_export_dicom(args: argparse.Namespace) -> int:
+    """Run the export-dicom command."""
+    from chromadose.io.dicom import save_dicom_dose
+
+    dose = np.load(args.dose)
+    save_dicom_dose(
+        dose,
+        args.output,
+        pixel_spacing_mm=(args.pixel_size, args.pixel_size),
+        patient_name=args.patient,
+        patient_id=args.patient_id,
+        plan_label=args.plan,
+    )
+    print(f"RT Dose saved to {args.output}")
+    print(f"  Shape: {dose.shape}")
+    print(f"  Max dose: {np.max(dose):.3f} Gy")
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,9 +1,11 @@
 """Tests for the CLI module."""
 
+import importlib.util
 import tempfile
 from pathlib import Path
 
 import numpy as np
+import pytest
 import tifffile
 
 from chromadose import __version__
@@ -35,6 +37,8 @@ def _write_calibration(path: Path) -> None:
         blue_pixels=_BLUE.pixel(doses),
     )
     cal.save(path)
+
+_HAS_PYDICOM = importlib.util.find_spec("pydicom") is not None
 
 
 class TestCLI:
@@ -193,3 +197,29 @@ class TestCLI:
                 "--outdir", str(tmp / "out"),
             ])
             assert result == 1
+
+    @pytest.mark.skipif(not _HAS_PYDICOM, reason="pydicom not installed")
+    def test_export_dicom_command(self) -> None:
+        """export-dicom should write a loadable RT Dose file."""
+        from chromadose.io.dicom import load_dicom_dose
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dose_path = str(Path(tmpdir) / "dose.npy")
+            out_path = str(Path(tmpdir) / "dose.dcm")
+
+            dose = np.linspace(0, 5, 400).reshape(20, 20)
+            np.save(dose_path, dose)
+
+            result = main([
+                "export-dicom",
+                "--dose", dose_path,
+                "--pixel-size", "0.353",
+                "--plan", "QA",
+                "-o", out_path,
+            ])
+            assert result == 0
+            assert Path(out_path).exists()
+
+            rt = load_dicom_dose(out_path)
+            np.testing.assert_allclose(rt.slice_2d(0), dose, atol=1e-5)
+            assert rt.pixel_spacing_mm == (0.353, 0.353)
