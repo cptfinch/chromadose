@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   calibration and optionally gamma-compare each against a single reference
   (`.npy` or DICOM RT Dose), writing per-film dose/gamma maps and a
   `summary.csv`
+- DICOM RT Dose **export**: `chromadose.io.save_dicom_dose` writes a measured
+  dose map (2D or 3D, in Gy) to a valid RT Dose file that round-trips through
+  `load_dicom_dose` and DICOM-aware treatment planning systems. Dose is stored
+  as uint32 with a `DoseGridScaling` factor, as TPS systems do.
+- `chromadose export-dicom` CLI command wrapping `save_dicom_dose`
 
 ### Fixed
 - `chromadose --version` reported a hard-coded `1.0.0`; it now reports the

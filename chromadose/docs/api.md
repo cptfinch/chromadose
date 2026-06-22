@@ -117,6 +117,13 @@ rt_dose = load_dicom_dose("rtdose.dcm")
 resampled = resample_to_film(rt_dose, film_shape=(500, 500), film_pixel_size_mm=0.353)
 ```
 
+### DICOM Export
+```python
+from chromadose.io.dicom import save_dicom_dose
+# Write a measured dose map (Gy) back out as a DICOM RT Dose file
+save_dicom_dose(dose_map.dose, "film_dose.dcm", pixel_spacing_mm=(0.353, 0.353))
+```
+
 ### PDF Reports
 ```python
 from chromadose.io import generate_report

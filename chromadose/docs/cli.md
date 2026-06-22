@@ -95,3 +95,24 @@ Options:
 
 The command exits non-zero if any film fails to process, while still
 completing the rest of the batch.
+
+### `chromadose export-dicom`
+
+Export a measured dose map back to a DICOM RT Dose file so it can be archived
+or round-tripped into the treatment planning system. Dose is stored as
+unsigned 32-bit integers with a `DoseGridScaling` factor (units Gy), matching
+how a TPS exports RT Dose.
+
+```bash
+chromadose export-dicom \
+  --dose dose.npy \
+  --pixel-size 0.353 \
+  --patient "PATIENT001" \
+  --plan "Head & Neck VMAT" \
+  -o dose.dcm
+```
+
+The written file round-trips through `chromadose.io.load_dicom_dose` (and any
+DICOM-aware TPS). 2D dose maps are written as a single-frame export; 3D arrays
+`(n_slices, H, W)` are written as a multi-frame dose volume. Requires the
+`dicom` extra (`pip install chromadose[dicom]`).
