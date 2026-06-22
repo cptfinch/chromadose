@@ -175,11 +175,18 @@ def save_dicom_dose(
 
     n_slices, rows, cols = dose_arr.shape
 
-    # Scale to uint32 with a DoseGridScaling factor (as TPS systems do).
+    # Clip non-physical negative dose to zero: film measurements can dip
+    # slightly below zero from noise, and such values would wrap around to huge
+    # numbers when cast to an unsigned integer.
+    dose_arr = np.clip(dose_arr, 0.0, None)
+
+    # Scale to uint32 with a DoseGridScaling factor (as TPS systems do). Store
+    # as little-endian regardless of host byte order, to match the Explicit VR
+    # Little Endian transfer syntax the file is written with.
     max_dose = float(dose_arr.max())
     uint32_max = np.iinfo(np.uint32).max
     dose_grid_scaling = max_dose / uint32_max if max_dose > 0 else 1.0
-    pixel_data = np.round(dose_arr / dose_grid_scaling).astype(np.uint32)
+    pixel_data = np.round(dose_arr / dose_grid_scaling).astype("<u4")
 
     sop_class_uid = UID(_RT_DOSE_SOP_CLASS_UID)
     sop_instance_uid = generate_uid()

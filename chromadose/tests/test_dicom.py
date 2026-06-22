@@ -146,6 +146,15 @@ class TestSaveDicomDose:
         rt = load_dicom_dose(out)
         np.testing.assert_array_equal(rt.slice_2d(0), np.zeros((8, 8)))
 
+    def test_negative_dose_clipped(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """Negative dose (e.g. scanner noise) is clipped to 0, not wrapped around."""
+        out = tmp_path / "negative.dcm"
+        dose = np.array([[-0.5, 2.0], [1.0, -0.1]])
+        save_dicom_dose(dose, out)
+        rt = load_dicom_dose(out)
+        expected = np.array([[0.0, 2.0], [1.0, 0.0]])
+        np.testing.assert_allclose(rt.slice_2d(0), expected, atol=1e-5)
+
     def test_invalid_ndim(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         """A 1D array should raise ValueError."""
         with pytest.raises(ValueError, match="2D or 3D"):
