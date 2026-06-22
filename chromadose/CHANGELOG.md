@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `chromadose batch-qa` CLI command: solve many films with a shared
+  calibration and optionally gamma-compare each against a single reference
+  (`.npy` or DICOM RT Dose), writing per-film dose/gamma maps and a
+  `summary.csv`
+
+### Fixed
+- `chromadose --version` reported a hard-coded `1.0.0`; it now reports the
+  installed package version (`chromadose.__version__`)
+- `chromadose solve --method multigaussian` was advertised in the CLI help
+  and docs but raised `ValueError` (the file-based CLI has no Multigaussian
+  calibration object). The `solve` method choices are now restricted to the
+  methods the CLI actually supports (`micke`, `mayer`), and the docs point to
+  the Python API for Multigaussian/ANN
+
 ## [0.9.1] — 2026-04-11
 
 Polish release. No new features — tightens the type-checking gate, cleans up

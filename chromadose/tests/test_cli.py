@@ -4,8 +4,37 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import tifffile
 
+from chromadose import __version__
+from chromadose.calibration import Calibration
 from chromadose.cli import main
+from chromadose.core.types import FitParams
+
+# Realistic EBT3 rational-function parameters: pixel(D) = (r + s*D) / (t + D)
+_RED = FitParams(r=0.655, s=0.037, t=2.956)
+_GREEN = FitParams(r=0.448, s=0.070, t=10.636)
+_BLUE = FitParams(r=0.402, s=0.007, t=5.963)
+
+
+def _write_synthetic_film(path: Path, doses: np.ndarray) -> None:
+    """Write a synthetic RGB float TIFF whose pixels encode a dose grid."""
+    rgb = np.stack(
+        [_RED.pixel(doses), _GREEN.pixel(doses), _BLUE.pixel(doses)], axis=-1
+    ).astype(np.float32)
+    tifffile.imwrite(path, rgb, photometric="rgb")
+
+
+def _write_calibration(path: Path) -> None:
+    """Write a calibration JSON matching the synthetic film parameters."""
+    doses = np.array([0.0, 0.5, 1.0, 2.0, 4.0, 7.0, 9.0])
+    cal = Calibration.from_arrays(
+        doses=doses,
+        red_pixels=_RED.pixel(doses),
+        green_pixels=_GREEN.pixel(doses),
+        blue_pixels=_BLUE.pixel(doses),
+    )
+    cal.save(path)
 
 
 class TestCLI:
@@ -14,12 +43,14 @@ class TestCLI:
         result = main([])
         assert result == 0
 
-    def test_version(self) -> None:
-        """--version should exit cleanly."""
+    def test_version(self, capsys) -> None:  # type: ignore[no-untyped-def]
+        """--version should exit cleanly and report the package version."""
         try:
             main(["--version"])
         except SystemExit as e:
             assert e.code == 0
+        out = capsys.readouterr().out
+        assert __version__ in out
 
     def test_gamma_command(self) -> None:
         """Gamma command should work with synthetic data."""
@@ -60,3 +91,61 @@ class TestCLI:
             ])
             assert result == 0
             assert Path(out_path).exists()
+
+    def test_batch_qa_without_reference(self) -> None:
+        """batch-qa should solve every film and write per-film dose + summary."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            cal_path = tmp / "cal.json"
+            _write_calibration(cal_path)
+
+            doses = np.broadcast_to(np.linspace(0, 5, 12), (12, 12))
+            films = []
+            for i in range(2):
+                fp = tmp / f"film{i}.tif"
+                _write_synthetic_film(fp, doses)
+                films.append(str(fp))
+
+            outdir = tmp / "out"
+            result = main(["batch-qa", *films, "--cal", str(cal_path), "--outdir", str(outdir)])
+
+            assert result == 0
+            assert (outdir / "film0_dose.npy").exists()
+            assert (outdir / "film1_dose.npy").exists()
+            assert (outdir / "summary.csv").exists()
+            # Recovered dose should be close to the encoded dose grid.
+            recovered = np.load(outdir / "film0_dose.npy")
+            assert np.allclose(recovered, doses, atol=0.1)
+
+    def test_batch_qa_with_npy_reference(self) -> None:
+        """batch-qa with a reference should run gamma and record the pass rate."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            cal_path = tmp / "cal.json"
+            _write_calibration(cal_path)
+
+            doses = np.broadcast_to(np.linspace(0, 5, 12), (12, 12))
+            film_path = tmp / "film.tif"
+            _write_synthetic_film(film_path, doses)
+
+            # Reference identical to the encoded dose -> high gamma pass rate.
+            ref_path = tmp / "ref.npy"
+            np.save(ref_path, np.asarray(doses, dtype=float))
+
+            outdir = tmp / "out"
+            result = main([
+                "batch-qa", str(film_path),
+                "--cal", str(cal_path),
+                "--ref", str(ref_path),
+                "--criteria", "3/3",
+                "--pixel-size", "0.353",
+                "--outdir", str(outdir),
+            ])
+
+            assert result == 0
+            assert (outdir / "film_gamma.npy").exists()
+            summary = (outdir / "summary.csv").read_text()
+            assert "gamma_pass_rate_pct" in summary
+            # Last column of the data row should be a populated pass rate.
+            pass_rate = float(summary.strip().splitlines()[1].split(",")[-1])
+            assert pass_rate > 95.0
