@@ -137,6 +137,9 @@ chromadose export-sr \
   -o qa_sr.dcm
 ```
 
+Pass `--study-uid` / `--series-uid` to place the report in an existing clinical
+study/series in PACS; otherwise fresh UIDs are generated.
+
 The written document can be read back with `chromadose.io.read_dicom_sr` (a
 flat `{concept: value}` dict) or by any DICOM SR viewer. Requires the `dicom`
 extra (`pip install chromadose[dicom]`).

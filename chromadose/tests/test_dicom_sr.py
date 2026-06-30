@@ -80,3 +80,22 @@ class TestSaveDicomSR:
         out = tmp_path / "empty.dcm"
         save_dicom_sr(out)
         assert read_dicom_sr(out) == {}
+
+    def test_explicit_study_series_uid(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """Provided study/series UIDs are used so the SR can join an existing study."""
+        import pydicom
+
+        out = tmp_path / "qa.dcm"
+        save_dicom_sr(
+            out,
+            max_dose_gy=1.0,
+            study_instance_uid="1.2.3.4.5",
+            series_instance_uid="1.2.3.4.6",
+        )
+        ds = pydicom.dcmread(str(out))
+        assert ds.StudyInstanceUID == "1.2.3.4.5"
+        assert ds.SeriesInstanceUID == "1.2.3.4.6"
+        # Type 2 attributes required by PACS must be present.
+        for attr in ("PatientName", "PatientID", "ReferringPhysicianName", "StudyID", "AccessionNumber"):
+            assert attr in ds
+        assert ds.SpecificCharacterSet == "ISO_IR 192"
