@@ -223,3 +223,33 @@ class TestCLI:
             rt = load_dicom_dose(out_path)
             np.testing.assert_allclose(rt.slice_2d(0), dose, atol=1e-5)
             assert rt.pixel_spacing_mm == (0.353, 0.353)
+
+    @pytest.mark.skipif(not _HAS_PYDICOM, reason="pydicom not installed")
+    def test_export_sr_command(self) -> None:
+        """export-sr should write a readable DICOM SR with the gamma metrics."""
+        from chromadose.io.dicom_sr import read_dicom_sr
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            meas_path = str(Path(tmpdir) / "dose.npy")
+            ref_path = str(Path(tmpdir) / "ref.npy")
+            out_path = str(Path(tmpdir) / "qa_sr.dcm")
+
+            ref = np.ones((20, 20)) * 2.0
+            np.save(meas_path, ref + 0.01)
+            np.save(ref_path, ref)
+
+            result = main([
+                "export-sr",
+                "--measured", meas_path,
+                "--reference", ref_path,
+                "--criteria", "3/3",
+                "--method", "micke",
+                "-o", out_path,
+            ])
+            assert result == 0
+            assert Path(out_path).exists()
+
+            values = read_dicom_sr(out_path)
+            assert values["Dosimetry method"] == "micke"
+            assert "Gamma pass rate" in values
+            assert values["Maximum dose"] == pytest.approx(2.01, abs=1e-3)

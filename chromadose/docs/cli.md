@@ -116,3 +116,27 @@ The written file round-trips through `chromadose.io.load_dicom_dose` (and any
 DICOM-aware TPS). 2D dose maps are written as a single-frame export; 3D arrays
 `(n_slices, H, W)` are written as a multi-frame dose volume. Requires the
 `dicom` extra (`pip install chromadose[dicom]`).
+### `chromadose export-sr`
+
+Export a QA result to a DICOM Structured Report (Comprehensive SR) for formal,
+archivable QA documentation. The report records the dosimetry method, the gamma
+analysis (criteria, pass rate, points evaluated/passed, dose threshold), and
+dose statistics as coded content items. Pass `--reference` to compute and
+include the gamma section.
+
+```bash
+chromadose export-sr \
+  --measured dose.npy \
+  --reference tps_dose.npy \
+  --criteria 3/3 \
+  --pixel-size 0.353 \
+  --method micke \
+  --film-type EBT3 \
+  --patient "PATIENT001" \
+  --plan "Head & Neck VMAT" \
+  -o qa_sr.dcm
+```
+
+The written document can be read back with `chromadose.io.read_dicom_sr` (a
+flat `{concept: value}` dict) or by any DICOM SR viewer. Requires the `dicom`
+extra (`pip install chromadose[dicom]`).

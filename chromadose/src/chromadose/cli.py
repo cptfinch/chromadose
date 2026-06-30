@@ -7,6 +7,7 @@ Usage:
     chromadose report --measured dose.npy --gamma gamma.npz -o report.pdf
     chromadose batch-qa *.tif --cal cal.json --ref tps.dcm --criteria 3/3
     chromadose export-dicom --dose dose.npy --pixel-size 0.353 -o dose.dcm
+    chromadose export-sr --measured dose.npy --reference tps.npy -o qa_sr.dcm
 
 Uses argparse (stdlib) to avoid extra dependencies.
 """
@@ -107,6 +108,21 @@ def main(argv: list[str] | None = None) -> int:
     export_parser.add_argument("--patient-id", default="", help="Patient ID")
     export_parser.add_argument("--plan", default="", help="RT Plan label")
     export_parser.add_argument("-o", "--output", default="dose.dcm", help="Output DICOM file")
+    # --- export-sr ---
+    sr_parser = subparsers.add_parser(
+        "export-sr", help="Export a QA result to a DICOM Structured Report"
+    )
+    sr_parser.add_argument("--measured", required=True, help="Measured dose (.npy)")
+    sr_parser.add_argument("--reference", help="Reference dose (.npy); enables gamma section")
+    sr_parser.add_argument("--criteria", default="3/3", help="Dose%%/DTA(mm), e.g. '3/3'")
+    sr_parser.add_argument("--threshold", type=float, default=10.0, help="Dose threshold (%%)")
+    sr_parser.add_argument("--pixel-size", type=float, default=1.0, help="Pixel size in mm")
+    sr_parser.add_argument("--method", default="", help="Dosimetry method name")
+    sr_parser.add_argument("--film-type", default="", help="Film model, e.g. EBT3")
+    sr_parser.add_argument("--patient", default="", help="Patient name")
+    sr_parser.add_argument("--patient-id", default="", help="Patient ID")
+    sr_parser.add_argument("--plan", default="", help="RT Plan label")
+    sr_parser.add_argument("-o", "--output", default="qa_sr.dcm", help="Output DICOM SR file")
 
     args = parser.parse_args(argv)
 
@@ -126,6 +142,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_batch_qa(args)
     elif args.command == "export-dicom":
         return _cmd_export_dicom(args)
+    elif args.command == "export-sr":
+        return _cmd_export_sr(args)
 
     return 0
 
@@ -390,6 +408,43 @@ def _cmd_export_dicom(args: argparse.Namespace) -> int:
     print(f"RT Dose saved to {args.output}")
     print(f"  Shape: {dose.shape}")
     print(f"  Max dose: {np.max(dose):.3f} Gy")
+    return 0
+
+
+def _cmd_export_sr(args: argparse.Namespace) -> int:
+    """Run the export-sr command."""
+    from chromadose.io.dicom_sr import save_dicom_sr
+
+    measured = np.load(args.measured)
+
+    gamma_result = None
+    if args.reference:
+        from chromadose.analysis.gamma import gamma_2d
+
+        reference = np.load(args.reference)
+        dose_crit, dta_crit = (float(x) for x in args.criteria.split("/"))
+        gamma_result = gamma_2d(
+            reference, measured,
+            dose_criteria=dose_crit,
+            distance_criteria_mm=dta_crit,
+            pixel_size_mm=args.pixel_size,
+            dose_threshold_pct=args.threshold,
+        )
+
+    save_dicom_sr(
+        args.output,
+        gamma_result=gamma_result,
+        max_dose_gy=float(np.max(measured)),
+        mean_dose_gy=float(np.mean(measured)),
+        method=args.method,
+        film_type=args.film_type,
+        patient_name=args.patient,
+        patient_id=args.patient_id,
+        plan_label=args.plan,
+    )
+    print(f"DICOM SR saved to {args.output}")
+    if gamma_result is not None:
+        print(f"  Gamma {gamma_result.criteria}: {gamma_result.pass_rate * 100:.1f}% pass")
     return 0
 
 
