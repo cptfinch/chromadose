@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `load_dicom_dose` and DICOM-aware treatment planning systems. Dose is stored
   as uint32 with a `DoseGridScaling` factor, as TPS systems do.
 - `chromadose export-dicom` CLI command wrapping `save_dicom_dose`
+- DICOM Structured Report (SR) export for QA documentation:
+  `chromadose.io.save_dicom_sr` writes a Comprehensive SR documenting the
+  dosimetry method, gamma analysis (criteria, pass rate, points
+  evaluated/passed, dose threshold) and dose statistics as coded content items.
+  `chromadose.io.read_dicom_sr` reads the document back into a flat dict.
+- `chromadose export-sr` CLI command wrapping `save_dicom_sr` (computes the
+  gamma section from `--measured` / `--reference`)
 
 ### Fixed
 - `chromadose --version` reported a hard-coded `1.0.0`; it now reports the

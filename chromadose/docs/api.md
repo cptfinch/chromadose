@@ -130,6 +130,21 @@ from chromadose.io import generate_report
 generate_report("report.pdf", dose_map, gamma_result=gamma, profiles=[comp])
 ```
 
+### DICOM Structured Report
+```python
+from chromadose.io import save_dicom_sr, read_dicom_sr
+# Archive a QA result as a Comprehensive SR
+save_dicom_sr(
+    "qa_sr.dcm",
+    gamma_result=gamma,
+    max_dose_gy=2.5,
+    mean_dose_gy=2.0,
+    method="micke",
+    patient_name="QA Phantom",
+)
+values = read_dicom_sr("qa_sr.dcm")  # {"Gamma pass rate": 98.5, ...}
+```
+
 ## Image Loading
 ```python
 from chromadose.core.image import load_tiff, load_tiff_averaged
