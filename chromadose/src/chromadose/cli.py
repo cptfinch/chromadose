@@ -108,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     export_parser.add_argument("--patient-id", default="", help="Patient ID")
     export_parser.add_argument("--plan", default="", help="RT Plan label")
     export_parser.add_argument("-o", "--output", default="dose.dcm", help="Output DICOM file")
+
     # --- export-sr ---
     sr_parser = subparsers.add_parser(
         "export-sr", help="Export a QA result to a DICOM Structured Report"
@@ -122,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
     sr_parser.add_argument("--patient", default="", help="Patient name")
     sr_parser.add_argument("--patient-id", default="", help="Patient ID")
     sr_parser.add_argument("--plan", default="", help="RT Plan label")
+    sr_parser.add_argument("--study-uid", default="", help="Study Instance UID to group with an existing study")
+    sr_parser.add_argument("--series-uid", default="", help="Series Instance UID for the SR series")
     sr_parser.add_argument("-o", "--output", default="qa_sr.dcm", help="Output DICOM SR file")
 
     args = parser.parse_args(argv)
@@ -441,6 +444,8 @@ def _cmd_export_sr(args: argparse.Namespace) -> int:
         patient_name=args.patient,
         patient_id=args.patient_id,
         plan_label=args.plan,
+        study_instance_uid=args.study_uid,
+        series_instance_uid=args.series_uid,
     )
     print(f"DICOM SR saved to {args.output}")
     if gamma_result is not None:

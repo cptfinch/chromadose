@@ -108,6 +108,8 @@ def save_dicom_sr(
     patient_id: str = "",
     plan_label: str = "",
     content_datetime: datetime | None = None,
+    study_instance_uid: str = "",
+    series_instance_uid: str = "",
 ) -> None:
     """Write a film QA result to a DICOM Comprehensive SR file.
 
@@ -124,6 +126,10 @@ def save_dicom_sr(
         patient_id: Patient ID for the DICOM header.
         plan_label: RT Plan label, recorded if provided.
         content_datetime: Content date/time for the document. Defaults to now.
+        study_instance_uid: Study Instance UID to group this SR with an existing
+            study. A new UID is generated when empty.
+        series_instance_uid: Series Instance UID for the SR series. A new UID is
+            generated when empty.
 
     Raises:
         ImportError: If pydicom is not installed.
@@ -189,14 +195,27 @@ def save_dicom_sr(
 
     ds = Dataset()
     ds.file_meta = file_meta
+    # UTF-8 so non-ASCII patient names / plan labels survive the round-trip.
+    ds.SpecificCharacterSet = "ISO_IR 192"
     ds.SOPClassUID = sop_class_uid
     ds.SOPInstanceUID = sop_instance_uid
 
-    # Patient / Study / Series
+    # Patient module (Type 2 attributes must be present, may be empty)
     ds.PatientName = patient_name
     ds.PatientID = patient_id
-    ds.StudyInstanceUID = generate_uid()
-    ds.SeriesInstanceUID = generate_uid()
+    ds.PatientBirthDate = ""
+    ds.PatientSex = ""
+
+    # General Study module
+    ds.StudyInstanceUID = study_instance_uid or generate_uid()
+    ds.StudyDate = when.strftime("%Y%m%d")
+    ds.StudyTime = when.strftime("%H%M%S")
+    ds.ReferringPhysicianName = ""
+    ds.StudyID = ""
+    ds.AccessionNumber = ""
+
+    # General Series module
+    ds.SeriesInstanceUID = series_instance_uid or generate_uid()
     ds.Modality = "SR"
     ds.Manufacturer = "chromadose"
     ds.SeriesNumber = 1
