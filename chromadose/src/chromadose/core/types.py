@@ -153,3 +153,44 @@ class DoseMap:
     @property
     def shape(self) -> tuple[int, int]:
         return (self.dose.shape[0], self.dose.shape[1])
+
+
+@dataclass(frozen=True)
+class BeamGeometry:
+    """Treatment beam setup geometry in the IEC 61217 reference system.
+
+    All angles are in degrees in the range [0, 360), following the IEC 61217
+    convention that DICOM RT Plan uses natively (so values read from a plan need
+    no conversion):
+
+    - ``gantry_angle``: gantry rotation about the horizontal (Y) axis.
+    - ``collimator_angle``: beam-limiting device (collimator) rotation about the
+      beam (Z) axis.
+    - ``couch_angle``: patient support (table) rotation about the vertical axis.
+
+    Attributes:
+        gantry_angle: Gantry angle in degrees.
+        collimator_angle: Collimator (beam-limiting device) angle in degrees.
+        couch_angle: Patient support (couch) angle in degrees.
+        beam_name: Beam name from the plan, if available.
+        beam_number: Beam number from the plan, if available.
+        beam_energy_mv: Nominal beam energy in MV, if available.
+        ssd_mm: Source-to-surface distance in mm, if available.
+    """
+
+    gantry_angle: float = 0.0
+    collimator_angle: float = 0.0
+    couch_angle: float = 0.0
+    beam_name: str = ""
+    beam_number: int | None = None
+    beam_energy_mv: float | None = None
+    ssd_mm: float | None = None
+
+    def __post_init__(self) -> None:
+        for label, angle in (
+            ("gantry_angle", self.gantry_angle),
+            ("collimator_angle", self.collimator_angle),
+            ("couch_angle", self.couch_angle),
+        ):
+            if not np.isfinite(angle) or not (0.0 <= angle < 360.0):
+                raise ValueError(f"{label} must be in [0, 360) degrees, got {angle}")

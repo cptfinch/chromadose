@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `chromadose.io.read_dicom_sr` reads the document back into a flat dict.
 - `chromadose export-sr` CLI command wrapping `save_dicom_sr` (computes the
   gamma section from `--measured` / `--reference`)
+- IEC 61217 beam geometry support: a `BeamGeometry` type
+  (`chromadose.BeamGeometry`) holding gantry / collimator / couch angles (plus
+  beam name/number, energy, SSD) in the IEC 61217 convention, with range
+  validation.
+- `chromadose.io.load_beam_geometry` reads beam geometry from a DICOM RT Plan
+  (first control point of each beam; treatment beams only by default).
+- `chromadose plan-geometry` CLI command listing an RT Plan's beam angles.
 
 ### Fixed
 - `chromadose --version` reported a hard-coded `1.0.0`; it now reports the
