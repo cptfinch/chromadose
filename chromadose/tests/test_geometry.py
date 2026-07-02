@@ -112,6 +112,48 @@ class TestLoadBeamGeometry:
         ])
         assert load_beam_geometry(plan)[0].gantry_angle == 0.0
 
+    def test_empty_elements_do_not_crash(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """Present-but-empty DICOM elements fall back to defaults, not exceptions."""
+        from pydicom.dataset import Dataset, FileMetaDataset
+        from pydicom.uid import ExplicitVRLittleEndian, generate_uid
+
+        rt_plan_storage = "1.2.840.10008.5.1.4.1.1.481.5"
+        file_meta = FileMetaDataset()
+        file_meta.MediaStorageSOPClassUID = rt_plan_storage
+        file_meta.MediaStorageSOPInstanceUID = generate_uid()
+        file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+
+        ds = Dataset()
+        ds.file_meta = file_meta
+        ds.SOPClassUID = rt_plan_storage
+        ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+        ds.Modality = "RTPLAN"
+
+        beam = Dataset()
+        beam.BeamNumber = None  # present but empty (Type 2)
+        beam.BeamName = None
+        cp = Dataset()
+        cp.ControlPointIndex = 0
+        cp.GantryAngle = None  # empty angle must not raise
+        cp.BeamLimitingDeviceAngle = None
+        cp.PatientSupportAngle = None
+        beam.ControlPointSequence = [cp]
+        ds.BeamSequence = [beam]
+
+        plan = tmp_path / "empty.dcm"
+        try:
+            ds.save_as(str(plan), enforce_file_format=True)
+        except TypeError:
+            ds.save_as(str(plan), write_like_original=False)
+
+        beams = load_beam_geometry(plan)
+        assert len(beams) == 1
+        g = beams[0]
+        assert g.gantry_angle == 0.0
+        assert g.beam_name == ""  # not the string "None"
+        assert g.beam_number is None
+        assert g.beam_energy_mv is None
+
     def test_non_rtplan_raises(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         import pydicom
         from pydicom.dataset import Dataset, FileMetaDataset
