@@ -8,6 +8,7 @@ Usage:
     chromadose batch-qa *.tif --cal cal.json --ref tps.dcm --criteria 3/3
     chromadose export-dicom --dose dose.npy --pixel-size 0.353 -o dose.dcm
     chromadose export-sr --measured dose.npy --reference tps.npy -o qa_sr.dcm
+    chromadose plan-geometry --plan rtplan.dcm
 
 Uses argparse (stdlib) to avoid extra dependencies.
 """
@@ -126,6 +127,13 @@ def main(argv: list[str] | None = None) -> int:
     sr_parser.add_argument("--study-uid", default="", help="Study Instance UID to group with an existing study")
     sr_parser.add_argument("--series-uid", default="", help="Series Instance UID for the SR series")
     sr_parser.add_argument("-o", "--output", default="qa_sr.dcm", help="Output DICOM SR file")
+    # --- plan-geometry ---
+    geom_parser = subparsers.add_parser(
+        "plan-geometry", help="List IEC 61217 beam geometry from a DICOM RT Plan"
+    )
+    geom_parser.add_argument("--plan", required=True, help="DICOM RT Plan file")
+    geom_parser.add_argument("--include-setup", action="store_true",
+                             help="Include setup beams (excluded by default)")
 
     args = parser.parse_args(argv)
 
@@ -147,6 +155,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_export_dicom(args)
     elif args.command == "export-sr":
         return _cmd_export_sr(args)
+    elif args.command == "plan-geometry":
+        return _cmd_plan_geometry(args)
 
     return 0
 
@@ -450,6 +460,24 @@ def _cmd_export_sr(args: argparse.Namespace) -> int:
     print(f"DICOM SR saved to {args.output}")
     if gamma_result is not None:
         print(f"  Gamma {gamma_result.criteria}: {gamma_result.pass_rate * 100:.1f}% pass")
+def _cmd_plan_geometry(args: argparse.Namespace) -> int:
+    """Run the plan-geometry command."""
+    from chromadose.io.dicom import load_beam_geometry
+
+    beams = load_beam_geometry(args.plan, include_setup=args.include_setup)
+    if not beams:
+        print("No beams found in plan.")
+        return 0
+
+    print(f"{len(beams)} beam(s) — IEC 61217 angles in degrees:")
+    print(f"  {'#':>3}  {'name':<14} {'gantry':>7} {'coll':>7} {'couch':>7}  energy")
+    for b in beams:
+        number = b.beam_number if b.beam_number is not None else "-"
+        energy = f"{b.beam_energy_mv:g} MV" if b.beam_energy_mv is not None else "-"
+        print(
+            f"  {number:>3}  {b.beam_name:<14} "
+            f"{b.gantry_angle:>7.1f} {b.collimator_angle:>7.1f} {b.couch_angle:>7.1f}  {energy}"
+        )
     return 0
 
 

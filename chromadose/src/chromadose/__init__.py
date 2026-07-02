@@ -11,7 +11,7 @@ operating under their institution's QA programme. See DISCLAIMER.md.
 """
 
 from chromadose.calibration import Calibration
-from chromadose.core.types import CalibrationData, DoseMap, FilmScan
+from chromadose.core.types import BeamGeometry, CalibrationData, DoseMap, FilmScan
 
 __version__ = "0.9.1"
-__all__ = ["Calibration", "CalibrationData", "DoseMap", "FilmScan"]
+__all__ = ["BeamGeometry", "Calibration", "CalibrationData", "DoseMap", "FilmScan"]

@@ -143,3 +143,22 @@ study/series in PACS; otherwise fresh UIDs are generated.
 The written document can be read back with `chromadose.io.read_dicom_sr` (a
 flat `{concept: value}` dict) or by any DICOM SR viewer. Requires the `dicom`
 extra (`pip install chromadose[dicom]`).
+### `chromadose plan-geometry`
+
+List the treatment beam geometry (IEC 61217 gantry / collimator / couch angles)
+from a DICOM RT Plan. Setup beams are excluded unless `--include-setup` is
+given.
+
+```bash
+chromadose plan-geometry --plan rtplan.dcm
+```
+
+```
+2 beam(s) — IEC 61217 angles in degrees:
+    #  name            gantry    coll   couch  energy
+    1  AP                 0.0     0.0     0.0  6 MV
+    2  RPO              225.0    90.0     0.0  10 MV
+```
+
+RT Plan angles are already in the IEC 61217 convention, so no conversion is
+applied. Requires the `dicom` extra (`pip install chromadose[dicom]`).

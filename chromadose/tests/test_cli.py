@@ -253,3 +253,21 @@ class TestCLI:
             assert values["Dosimetry method"] == "micke"
             assert "Gamma pass rate" in values
             assert values["Maximum dose"] == pytest.approx(2.01, abs=1e-3)
+    @pytest.mark.skipif(not _HAS_PYDICOM, reason="pydicom not installed")
+    def test_plan_geometry_command(self, capsys) -> None:  # type: ignore[no-untyped-def]
+        """plan-geometry should list beam angles from an RT Plan."""
+        from .test_geometry import _write_rtplan
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan = Path(tmpdir) / "plan.dcm"
+            _write_rtplan(plan, [
+                {"number": 1, "name": "AP", "gantry": 0.0, "collimator": 0.0, "couch": 0.0},
+                {"number": 2, "name": "LLAT", "gantry": 90.0, "collimator": 45.0, "couch": 10.0},
+            ])
+
+            result = main(["plan-geometry", "--plan", str(plan)])
+            assert result == 0
+            out = capsys.readouterr().out
+            assert "2 beam(s)" in out
+            assert "LLAT" in out
+            assert "90.0" in out

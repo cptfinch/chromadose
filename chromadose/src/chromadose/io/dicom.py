@@ -13,9 +13,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+
+from chromadose.core.types import BeamGeometry
 
 # DICOM SOP Class UID for RT Dose Storage.
 _RT_DOSE_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.481.2"
@@ -250,6 +253,75 @@ def save_dicom_dose(
         ds.save_as(str(out), enforce_file_format=True)
     except TypeError:
         ds.save_as(str(out), write_like_original=False)
+
+
+def load_beam_geometry(
+    path: str | Path, include_setup: bool = False
+) -> list[BeamGeometry]:
+    """Read treatment beam geometry (IEC 61217) from a DICOM RT Plan file.
+
+    Gantry, collimator (beam-limiting device) and couch (patient support) angles
+    are taken from each beam's first control point. RT Plan angles are already
+    in the IEC 61217 convention, so no conversion is applied (only wrapping into
+    [0, 360)).
+
+    Parameters:
+        path: Path to a DICOM RT Plan file.
+        include_setup: If True, include setup beams (TreatmentDeliveryType
+            "SETUP"); by default only treatment beams are returned.
+
+    Returns:
+        One BeamGeometry per beam, in plan order.
+
+    Raises:
+        ImportError: If pydicom is not installed.
+        ValueError: If the file has no BeamSequence (not an RT Plan).
+    """
+    try:
+        import pydicom
+    except ImportError:
+        raise ImportError(
+            "pydicom is required for DICOM import. "
+            "Install with: pip install chromadose[dicom]"
+        )
+
+    ds = pydicom.dcmread(str(Path(path)))
+    if not hasattr(ds, "BeamSequence"):
+        raise ValueError(f"File has no BeamSequence (not an RT Plan?): {path}")
+
+    beams: list[BeamGeometry] = []
+    for beam in ds.BeamSequence:
+        delivery = str(getattr(beam, "TreatmentDeliveryType", "TREATMENT"))
+        if not include_setup and delivery == "SETUP":
+            continue
+
+        number = getattr(beam, "BeamNumber", None)
+        control_points = getattr(beam, "ControlPointSequence", [])
+
+        gantry = collimator = couch = 0.0
+        energy = ssd = None
+        if control_points:
+            cp0 = control_points[0]
+            gantry = float(getattr(cp0, "GantryAngle", 0.0)) % 360.0
+            collimator = float(getattr(cp0, "BeamLimitingDeviceAngle", 0.0)) % 360.0
+            couch = float(getattr(cp0, "PatientSupportAngle", 0.0)) % 360.0
+            if hasattr(cp0, "NominalBeamEnergy"):
+                energy = float(cp0.NominalBeamEnergy)
+            if hasattr(cp0, "SourceToSurfaceDistance"):
+                ssd = float(cp0.SourceToSurfaceDistance)
+
+        beams.append(
+            BeamGeometry(
+                gantry_angle=gantry,
+                collimator_angle=collimator,
+                couch_angle=couch,
+                beam_name=str(getattr(beam, "BeamName", "")),
+                beam_number=int(number) if number is not None else None,
+                beam_energy_mv=energy,
+                ssd_mm=ssd,
+            )
+        )
+    return beams
 
 
 def resample_to_film(
