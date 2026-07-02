@@ -255,6 +255,28 @@ def save_dicom_dose(
         ds.save_as(str(out), write_like_original=False)
 
 
+def _dicom_value(dataset: Any, name: str) -> Any:
+    """Return a DICOM element value, treating present-but-empty as absent.
+
+    DICOM Type 2 elements can exist with an empty value (``None`` or ``""``);
+    ``getattr(..., default)`` would return that empty value rather than the
+    default, so normalize both to ``None``.
+    """
+    value = getattr(dataset, name, None)
+    return None if value == "" else value
+
+
+def _opt_float(dataset: Any, name: str) -> float | None:
+    value = _dicom_value(dataset, name)
+    return float(value) if value is not None else None
+
+
+def _angle(dataset: Any, name: str) -> float:
+    """Read an angle in degrees, defaulting to 0 and wrapping into [0, 360)."""
+    value = _opt_float(dataset, name)
+    return value % 360.0 if value is not None else 0.0
+
+
 def load_beam_geometry(
     path: str | Path, include_setup: bool = False
 ) -> list[BeamGeometry]:
@@ -291,34 +313,25 @@ def load_beam_geometry(
 
     beams: list[BeamGeometry] = []
     for beam in ds.BeamSequence:
-        delivery = str(getattr(beam, "TreatmentDeliveryType", "TREATMENT"))
+        delivery = _dicom_value(beam, "TreatmentDeliveryType")
         if not include_setup and delivery == "SETUP":
             continue
 
-        number = getattr(beam, "BeamNumber", None)
-        control_points = getattr(beam, "ControlPointSequence", [])
+        control_points = getattr(beam, "ControlPointSequence", None) or []
+        cp0 = control_points[0] if control_points else None
 
-        gantry = collimator = couch = 0.0
-        energy = ssd = None
-        if control_points:
-            cp0 = control_points[0]
-            gantry = float(getattr(cp0, "GantryAngle", 0.0)) % 360.0
-            collimator = float(getattr(cp0, "BeamLimitingDeviceAngle", 0.0)) % 360.0
-            couch = float(getattr(cp0, "PatientSupportAngle", 0.0)) % 360.0
-            if hasattr(cp0, "NominalBeamEnergy"):
-                energy = float(cp0.NominalBeamEnergy)
-            if hasattr(cp0, "SourceToSurfaceDistance"):
-                ssd = float(cp0.SourceToSurfaceDistance)
+        number = _dicom_value(beam, "BeamNumber")
+        name = _dicom_value(beam, "BeamName")
 
         beams.append(
             BeamGeometry(
-                gantry_angle=gantry,
-                collimator_angle=collimator,
-                couch_angle=couch,
-                beam_name=str(getattr(beam, "BeamName", "")),
+                gantry_angle=_angle(cp0, "GantryAngle") if cp0 is not None else 0.0,
+                collimator_angle=_angle(cp0, "BeamLimitingDeviceAngle") if cp0 is not None else 0.0,
+                couch_angle=_angle(cp0, "PatientSupportAngle") if cp0 is not None else 0.0,
+                beam_name=str(name) if name is not None else "",
                 beam_number=int(number) if number is not None else None,
-                beam_energy_mv=energy,
-                ssd_mm=ssd,
+                beam_energy_mv=_opt_float(cp0, "NominalBeamEnergy") if cp0 is not None else None,
+                ssd_mm=_opt_float(cp0, "SourceToSurfaceDistance") if cp0 is not None else None,
             )
         )
     return beams

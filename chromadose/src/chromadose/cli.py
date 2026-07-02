@@ -460,6 +460,9 @@ def _cmd_export_sr(args: argparse.Namespace) -> int:
     print(f"DICOM SR saved to {args.output}")
     if gamma_result is not None:
         print(f"  Gamma {gamma_result.criteria}: {gamma_result.pass_rate * 100:.1f}% pass")
+    return 0
+
+
 def _cmd_plan_geometry(args: argparse.Namespace) -> int:
     """Run the plan-geometry command."""
     from chromadose.io.dicom import load_beam_geometry
