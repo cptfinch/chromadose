@@ -149,3 +149,47 @@ class TestCLI:
             # Last column of the data row should be a populated pass rate.
             pass_rate = float(summary.strip().splitlines()[1].split(",")[-1])
             assert pass_rate > 95.0
+
+    def test_batch_qa_continues_on_bad_film(self) -> None:
+        """A film that fails to process is recorded but does not abort the batch."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            cal_path = tmp / "cal.json"
+            _write_calibration(cal_path)
+
+            doses = np.broadcast_to(np.linspace(0, 5, 12), (12, 12))
+            good = tmp / "good.tif"
+            _write_synthetic_film(good, doses)
+            bad = tmp / "bad.tif"
+            bad.write_text("not a tiff")  # will fail to load
+
+            outdir = tmp / "out"
+            result = main([
+                "batch-qa", str(bad), str(good),
+                "--cal", str(cal_path), "--outdir", str(outdir),
+            ])
+
+            # Non-zero because one film failed, but the good film still ran.
+            assert result == 1
+            assert (outdir / "good_dose.npy").exists()
+            assert not (outdir / "bad_dose.npy").exists()
+            rows = (outdir / "summary.csv").read_text().strip().splitlines()
+            assert rows[1] == "bad,,,"  # failed film recorded with empty metrics
+            assert rows[2].startswith("good,")
+
+    def test_batch_qa_bad_reference_is_fatal(self) -> None:
+        """A reference that cannot be loaded fails fast before processing films."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            cal_path = tmp / "cal.json"
+            _write_calibration(cal_path)
+            film = tmp / "film.tif"
+            _write_synthetic_film(film, np.broadcast_to(np.linspace(0, 5, 12), (12, 12)))
+
+            result = main([
+                "batch-qa", str(film),
+                "--cal", str(cal_path),
+                "--ref", str(tmp / "missing.npy"),
+                "--outdir", str(tmp / "out"),
+            ])
+            assert result == 1

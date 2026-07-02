@@ -15,11 +15,15 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
 
 from chromadose import __version__
+
+if TYPE_CHECKING:
+    from chromadose.io.dicom import RTDose
 
 # Methods wired into the simple file-based CLI. Multigaussian and ANN require
 # dedicated calibration objects (MultigaussianCalibration / ANNCalibration)
@@ -246,24 +250,39 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
-def _load_reference(
-    path: str, film_shape: tuple[int, int], pixel_size_mm: float
-) -> NDArray[np.floating]:
-    """Load a reference dose as a 2D array matching the film grid.
+def _load_reference_source(path: str) -> NDArray[np.floating] | RTDose:
+    """Load the shared reference dose once for the whole batch.
 
-    Accepts either a NumPy ``.npy`` file (assumed already on the film grid)
-    or a DICOM RT Dose file (resampled to the film grid via bilinear
-    interpolation). DICOM volumes use their maximum-dose slice.
+    A NumPy ``.npy`` file is returned as an array (assumed to already be on the
+    film grid); a DICOM RT Dose file is returned as an ``RTDose`` object, which
+    is resampled to each film's grid later by :func:`_reference_for_film`.
     """
     p = Path(path)
     if p.suffix.lower() == ".npy":
         return np.load(p)
 
-    from chromadose.io.dicom import load_dicom_dose, resample_to_film
+    from chromadose.io.dicom import load_dicom_dose
 
-    rt_dose = load_dicom_dose(p)
-    slice_index, _ = rt_dose.max_dose_slice()
-    return resample_to_film(rt_dose, film_shape, pixel_size_mm, slice_index)
+    return load_dicom_dose(p)
+
+
+def _reference_for_film(
+    ref_source: NDArray[np.floating] | RTDose,
+    film_shape: tuple[int, int],
+    pixel_size_mm: float,
+) -> NDArray[np.floating]:
+    """Return the reference dose on a given film's grid.
+
+    Array references are shared as-is; DICOM references are resampled to the
+    film grid using their maximum-dose slice.
+    """
+    if isinstance(ref_source, np.ndarray):
+        return ref_source
+
+    from chromadose.io.dicom import resample_to_film
+
+    slice_index, _ = ref_source.max_dose_slice()
+    return resample_to_film(ref_source, film_shape, pixel_size_mm, slice_index)
 
 
 def _cmd_batch_qa(args: argparse.Namespace) -> int:
@@ -281,45 +300,57 @@ def _cmd_batch_qa(args: argparse.Namespace) -> int:
     cal = Calibration.load(args.cal)
     solver = get_solver(args.method)()
 
+    # Load the shared reference once — parsing a DICOM RT Dose (or even a .npy)
+    # on every film would dominate the runtime of a large batch. A failure here
+    # is fatal since the requested gamma analysis can't run for any film.
+    ref_source: NDArray[np.floating] | RTDose | None = None
+    if args.ref:
+        try:
+            ref_source = _load_reference_source(args.ref)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Error loading reference '{args.ref}': {exc}", file=sys.stderr)
+            return 1
+
     summary_lines = ["film,max_dose_Gy,mean_dose_Gy,gamma_pass_rate_pct"]
     failures = 0
 
     for film_path in args.films:
         name = Path(film_path).stem
+        # Wrap the whole per-film pipeline so a failure in any step (load,
+        # solve, resample, gamma, save) is reported and the batch continues.
         try:
             film = load_tiff(film_path)
             result = solver.solve(film, cal.result)
+
+            np.save(outdir / f"{name}_dose.npy", result.dose)
+
+            pass_rate_str = ""
+            pass_rate_pct = ""
+            if ref_source is not None:
+                reference = _reference_for_film(ref_source, result.dose.shape, args.pixel_size)
+                gamma = gamma_2d(
+                    reference, result.dose,
+                    dose_criteria=dose_crit,
+                    distance_criteria_mm=dta_crit,
+                    pixel_size_mm=args.pixel_size,
+                    dose_threshold_pct=args.threshold,
+                )
+                np.save(outdir / f"{name}_gamma.npy", gamma.gamma_map)
+                pass_rate_pct = f"{gamma.pass_rate * 100:.1f}"
+                pass_rate_str = f"  gamma {gamma.criteria}: {pass_rate_pct}% pass"
+
+            print(
+                f"[ OK ] {name}: max {np.max(result.dose):.3f} Gy, "
+                f"mean {np.mean(result.dose):.3f} Gy{pass_rate_str}"
+            )
+            summary_lines.append(
+                f"{name},{np.max(result.dose):.4f},{np.mean(result.dose):.4f},{pass_rate_pct}"
+            )
         except Exception as exc:  # noqa: BLE001 — report and continue the batch
             print(f"[FAIL] {film_path}: {exc}", file=sys.stderr)
             summary_lines.append(f"{name},,,")
             failures += 1
             continue
-
-        dose_out = outdir / f"{name}_dose.npy"
-        np.save(dose_out, result.dose)
-
-        pass_rate_str = ""
-        pass_rate_pct = ""
-        if args.ref:
-            reference = _load_reference(args.ref, result.dose.shape, args.pixel_size)
-            gamma = gamma_2d(
-                reference, result.dose,
-                dose_criteria=dose_crit,
-                distance_criteria_mm=dta_crit,
-                pixel_size_mm=args.pixel_size,
-                dose_threshold_pct=args.threshold,
-            )
-            np.save(outdir / f"{name}_gamma.npy", gamma.gamma_map)
-            pass_rate_pct = f"{gamma.pass_rate * 100:.1f}"
-            pass_rate_str = f"  gamma {gamma.criteria}: {pass_rate_pct}% pass"
-
-        print(
-            f"[ OK ] {name}: max {np.max(result.dose):.3f} Gy, "
-            f"mean {np.mean(result.dose):.3f} Gy{pass_rate_str}"
-        )
-        summary_lines.append(
-            f"{name},{np.max(result.dose):.4f},{np.mean(result.dose):.4f},{pass_rate_pct}"
-        )
 
     summary_path = outdir / "summary.csv"
     summary_path.write_text("\n".join(summary_lines) + "\n")
