@@ -415,13 +415,21 @@ def _geometry_from_rtplan(path: str | None) -> BeamGeometry | None:
 
     from chromadose.io.dicom import load_beam_geometry
 
-    beams = load_beam_geometry(path)
+    try:
+        beams = load_beam_geometry(path)
+    except Exception as exc:  # noqa: BLE001 — surface a clean CLI error, not a traceback
+        print(f"Error loading RT Plan '{path}': {exc}", file=sys.stderr)
+        sys.exit(1)
+
     if not beams:
         print(f"Warning: no treatment beams in {path}; geometry not recorded", file=sys.stderr)
         return None
     if len(beams) > 1:
         label = beams[0].beam_name or "beam 1"
-        print(f"Note: RT Plan has {len(beams)} beams; recording geometry of the first ({label})")
+        print(
+            f"Note: RT Plan has {len(beams)} beams; recording geometry of the first ({label})",
+            file=sys.stderr,
+        )
     return beams[0]
 
 
