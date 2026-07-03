@@ -253,6 +253,34 @@ class TestCLI:
             assert values["Dosimetry method"] == "micke"
             assert "Gamma pass rate" in values
             assert values["Maximum dose"] == pytest.approx(2.01, abs=1e-3)
+
+    @pytest.mark.skipif(not _HAS_PYDICOM, reason="pydicom not installed")
+    def test_export_sr_with_rtplan_geometry(self) -> None:
+        """export-sr --rtplan records the plan's beam geometry in the SR."""
+        from chromadose.io.dicom_sr import read_dicom_sr
+
+        from .test_geometry import _write_rtplan
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            meas_path = str(tmp / "dose.npy")
+            plan_path = tmp / "plan.dcm"
+            out_path = str(tmp / "qa_sr.dcm")
+
+            np.save(meas_path, np.ones((20, 20)) * 2.0)
+            _write_rtplan(plan_path, [
+                {"number": 1, "name": "LLAT", "gantry": 90.0, "collimator": 45.0, "couch": 10.0},
+            ])
+
+            result = main([
+                "export-sr", "--measured", meas_path,
+                "--rtplan", str(plan_path), "-o", out_path,
+            ])
+            assert result == 0
+            values = read_dicom_sr(out_path)
+            assert values["Gantry angle"] == pytest.approx(90.0)
+            assert values["Beam name"] == "LLAT"
+
     @pytest.mark.skipif(not _HAS_PYDICOM, reason="pydicom not installed")
     def test_plan_geometry_command(self, capsys) -> None:  # type: ignore[no-untyped-def]
         """plan-geometry should list beam angles from an RT Plan."""

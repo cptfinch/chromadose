@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from pydicom.dataset import Dataset
 
     from chromadose.analysis.gamma import GammaResult
+    from chromadose.core.types import BeamGeometry
 
 # DICOM SOP Class UID for Comprehensive SR Storage.
 _COMPREHENSIVE_SR_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.88.33"
@@ -110,6 +111,7 @@ def save_dicom_sr(
     content_datetime: datetime | None = None,
     study_instance_uid: str = "",
     series_instance_uid: str = "",
+    geometry: BeamGeometry | None = None,
 ) -> None:
     """Write a film QA result to a DICOM Comprehensive SR file.
 
@@ -130,6 +132,9 @@ def save_dicom_sr(
             study. A new UID is generated when empty.
         series_instance_uid: Series Instance UID for the SR series. A new UID is
             generated when empty.
+        geometry: Optional IEC 61217 beam geometry, recorded as a "Beam
+            geometry" section (gantry / collimator / couch angles in degrees,
+            plus beam name and energy when available).
 
     Raises:
         ImportError: If pydicom is not installed.
@@ -184,6 +189,25 @@ def save_dicom_sr(
         dose_children.append(_num_item("CD021", "Mean dose", float(mean_dose_gy), "Gy", "Gray"))
     if dose_children:
         children.append(_container("CD029", "Dose statistics", dose_children))
+
+    if geometry is not None:
+        geo_children: list[Dataset] = []
+        if geometry.beam_name:
+            geo_children.append(_text_item("CD030", "Beam name", geometry.beam_name))
+        geo_children.append(
+            _num_item("CD031", "Gantry angle", float(geometry.gantry_angle), "deg", "degree")
+        )
+        geo_children.append(
+            _num_item("CD032", "Collimator angle", float(geometry.collimator_angle), "deg", "degree")
+        )
+        geo_children.append(
+            _num_item("CD033", "Couch angle", float(geometry.couch_angle), "deg", "degree")
+        )
+        if geometry.beam_energy_mv is not None:
+            geo_children.append(
+                _num_item("CD034", "Beam energy", float(geometry.beam_energy_mv), "MV", "megavolt")
+            )
+        children.append(_container("CD039", "Beam geometry", geo_children))
 
     sop_class_uid = UID(_COMPREHENSIVE_SR_SOP_CLASS_UID)
     sop_instance_uid = generate_uid()

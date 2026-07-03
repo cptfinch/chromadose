@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- IEC 61217 beam geometry can now be stamped into exports: `save_dicom_dose`
+  and `save_dicom_sr` accept a `geometry` argument (RT Dose records the gantry /
+  collimator / couch angle attributes; the SR gains a "Beam geometry" section).
+  The `export-dicom` and `export-sr` CLI commands take `--rtplan` to pull that
+  geometry from an RT Plan's first treatment beam.
 - `chromadose batch-qa` CLI command: solve many films with a shared
   calibration and optionally gamma-compare each against a single reference
   (`.npy` or DICOM RT Dose), writing per-film dose/gamma maps and a
