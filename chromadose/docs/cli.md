@@ -114,8 +114,10 @@ chromadose export-dicom \
 
 The written file round-trips through `chromadose.io.load_dicom_dose` (and any
 DICOM-aware TPS). 2D dose maps are written as a single-frame export; 3D arrays
-`(n_slices, H, W)` are written as a multi-frame dose volume. Requires the
-`dicom` extra (`pip install chromadose[dicom]`).
+`(n_slices, H, W)` are written as a multi-frame dose volume. Pass `--rtplan
+plan.dcm` to record the first treatment beam's IEC 61217 gantry / collimator /
+couch angles. Requires the `dicom` extra (`pip install chromadose[dicom]`).
+
 ### `chromadose export-sr`
 
 Export a QA result to a DICOM Structured Report (Comprehensive SR) for formal,
@@ -138,11 +140,14 @@ chromadose export-sr \
 ```
 
 Pass `--study-uid` / `--series-uid` to place the report in an existing clinical
-study/series in PACS; otherwise fresh UIDs are generated.
+study/series in PACS; otherwise fresh UIDs are generated. Pass `--rtplan
+plan.dcm` to add a "Beam geometry" section with the first treatment beam's
+IEC 61217 angles.
 
 The written document can be read back with `chromadose.io.read_dicom_sr` (a
 flat `{concept: value}` dict) or by any DICOM SR viewer. Requires the `dicom`
 extra (`pip install chromadose[dicom]`).
+
 ### `chromadose plan-geometry`
 
 List the treatment beam geometry (IEC 61217 gantry / collimator / couch angles)

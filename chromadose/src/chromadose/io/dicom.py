@@ -136,6 +136,7 @@ def save_dicom_dose(
     patient_id: str = "",
     plan_label: str = "",
     dose_summation_type: str = "PLAN",
+    geometry: BeamGeometry | None = None,
 ) -> None:
     """Write a dose distribution to a DICOM RT Dose file.
 
@@ -155,6 +156,10 @@ def save_dicom_dose(
         patient_id: Patient ID for the DICOM header.
         plan_label: RT Plan label to record.
         dose_summation_type: DICOM DoseSummationType, e.g. "PLAN" or "BEAM".
+        geometry: Optional IEC 61217 beam geometry to record. When given, the
+            gantry / collimator / couch angles are written as standard DICOM
+            angle attributes (a supplementary annotation — these belong to the
+            RT Beam module, not the RT Dose IOD, but are widely readable).
 
     Raises:
         ImportError: If pydicom is not installed.
@@ -214,6 +219,14 @@ def save_dicom_dose(
     ds.Manufacturer = "chromadose"
     if plan_label:
         ds.RTPlanLabel = plan_label
+
+    # IEC 61217 beam geometry (supplementary annotation)
+    if geometry is not None:
+        ds.GantryAngle = geometry.gantry_angle
+        ds.BeamLimitingDeviceAngle = geometry.collimator_angle
+        ds.PatientSupportAngle = geometry.couch_angle
+        if geometry.beam_name:
+            ds.BeamName = geometry.beam_name
 
     # Image geometry
     ds.ImagePositionPatient = [float(x) for x in origin_mm]

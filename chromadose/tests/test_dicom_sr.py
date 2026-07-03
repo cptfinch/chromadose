@@ -81,6 +81,23 @@ class TestSaveDicomSR:
         save_dicom_sr(out)
         assert read_dicom_sr(out) == {}
 
+    def test_beam_geometry_recorded(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """IEC 61217 beam geometry round-trips into the SR content tree."""
+        from chromadose.core.types import BeamGeometry
+
+        out = tmp_path / "qa.dcm"
+        save_dicom_sr(
+            out,
+            geometry=BeamGeometry(gantry_angle=90.0, collimator_angle=45.0,
+                                  couch_angle=15.0, beam_name="LLAT", beam_energy_mv=6.0),
+        )
+        values = read_dicom_sr(out)
+        assert values["Beam name"] == "LLAT"
+        assert values["Gantry angle"] == pytest.approx(90.0)
+        assert values["Collimator angle"] == pytest.approx(45.0)
+        assert values["Couch angle"] == pytest.approx(15.0)
+        assert values["Beam energy"] == pytest.approx(6.0)
+
     def test_explicit_study_series_uid(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         """Provided study/series UIDs are used so the SR can join an existing study."""
         import pydicom

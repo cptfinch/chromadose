@@ -26,6 +26,7 @@ from numpy.typing import NDArray
 from chromadose import __version__
 
 if TYPE_CHECKING:
+    from chromadose.core.types import BeamGeometry
     from chromadose.io.dicom import RTDose
 
 # Methods wired into the simple file-based CLI. Multigaussian and ANN require
@@ -108,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     export_parser.add_argument("--patient", default="", help="Patient name")
     export_parser.add_argument("--patient-id", default="", help="Patient ID")
     export_parser.add_argument("--plan", default="", help="RT Plan label")
+    export_parser.add_argument("--rtplan", help="DICOM RT Plan to read IEC 61217 beam geometry from")
     export_parser.add_argument("-o", "--output", default="dose.dcm", help="Output DICOM file")
 
     # --- export-sr ---
@@ -126,6 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     sr_parser.add_argument("--plan", default="", help="RT Plan label")
     sr_parser.add_argument("--study-uid", default="", help="Study Instance UID to group with an existing study")
     sr_parser.add_argument("--series-uid", default="", help="Series Instance UID for the SR series")
+    sr_parser.add_argument("--rtplan", help="DICOM RT Plan to read IEC 61217 beam geometry from")
     sr_parser.add_argument("-o", "--output", default="qa_sr.dcm", help="Output DICOM SR file")
     # --- plan-geometry ---
     geom_parser = subparsers.add_parser(
@@ -405,6 +408,23 @@ def _cmd_batch_qa(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def _geometry_from_rtplan(path: str | None) -> BeamGeometry | None:
+    """Load the first treatment beam's IEC 61217 geometry from an RT Plan."""
+    if not path:
+        return None
+
+    from chromadose.io.dicom import load_beam_geometry
+
+    beams = load_beam_geometry(path)
+    if not beams:
+        print(f"Warning: no treatment beams in {path}; geometry not recorded", file=sys.stderr)
+        return None
+    if len(beams) > 1:
+        label = beams[0].beam_name or "beam 1"
+        print(f"Note: RT Plan has {len(beams)} beams; recording geometry of the first ({label})")
+    return beams[0]
+
+
 def _cmd_export_dicom(args: argparse.Namespace) -> int:
     """Run the export-dicom command."""
     from chromadose.io.dicom import save_dicom_dose
@@ -417,6 +437,7 @@ def _cmd_export_dicom(args: argparse.Namespace) -> int:
         patient_name=args.patient,
         patient_id=args.patient_id,
         plan_label=args.plan,
+        geometry=_geometry_from_rtplan(args.rtplan),
     )
     print(f"RT Dose saved to {args.output}")
     print(f"  Shape: {dose.shape}")
@@ -456,6 +477,7 @@ def _cmd_export_sr(args: argparse.Namespace) -> int:
         plan_label=args.plan,
         study_instance_uid=args.study_uid,
         series_instance_uid=args.series_uid,
+        geometry=_geometry_from_rtplan(args.rtplan),
     )
     print(f"DICOM SR saved to {args.output}")
     if gamma_result is not None:

@@ -159,3 +159,21 @@ class TestSaveDicomDose:
         """A 1D array should raise ValueError."""
         with pytest.raises(ValueError, match="2D or 3D"):
             save_dicom_dose(np.zeros(5), tmp_path / "bad.dcm")
+
+    def test_geometry_recorded(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        """Beam geometry is written as standard DICOM angle attributes."""
+        import pydicom
+
+        from chromadose.core.types import BeamGeometry
+
+        out = tmp_path / "dose.dcm"
+        save_dicom_dose(
+            np.ones((8, 8)) * 2.0, out,
+            geometry=BeamGeometry(gantry_angle=90.0, collimator_angle=45.0,
+                                  couch_angle=15.0, beam_name="LLAT"),
+        )
+        ds = pydicom.dcmread(str(out))
+        assert float(ds.GantryAngle) == 90.0
+        assert float(ds.BeamLimitingDeviceAngle) == 45.0
+        assert float(ds.PatientSupportAngle) == 15.0
+        assert str(ds.BeamName) == "LLAT"
