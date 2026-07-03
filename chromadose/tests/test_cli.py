@@ -282,6 +282,22 @@ class TestCLI:
             assert values["Beam name"] == "LLAT"
 
     @pytest.mark.skipif(not _HAS_PYDICOM, reason="pydicom not installed")
+    def test_export_sr_bad_rtplan_exits_cleanly(self) -> None:
+        """A missing/invalid --rtplan exits non-zero instead of a traceback."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            meas_path = str(tmp / "dose.npy")
+            np.save(meas_path, np.ones((10, 10)))
+
+            with pytest.raises(SystemExit) as excinfo:
+                main([
+                    "export-sr", "--measured", meas_path,
+                    "--rtplan", str(tmp / "missing.dcm"),
+                    "-o", str(tmp / "qa_sr.dcm"),
+                ])
+            assert excinfo.value.code == 1
+
+    @pytest.mark.skipif(not _HAS_PYDICOM, reason="pydicom not installed")
     def test_plan_geometry_command(self, capsys) -> None:  # type: ignore[no-untyped-def]
         """plan-geometry should list beam angles from an RT Plan."""
         from .test_geometry import _write_rtplan
