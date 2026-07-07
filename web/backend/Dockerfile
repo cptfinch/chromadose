@@ -16,7 +16,10 @@ COPY chromadose /app/chromadose
 COPY web/backend /app/web/backend
 
 WORKDIR /app/web/backend
-RUN pip install .
+# `[tool.uv.sources]` (the local path dependency) is uv-only, so plain pip would
+# try to fetch chromadose from PyPI. Install the sibling package explicitly
+# alongside the backend so pip resolves it from the local checkout.
+RUN pip install /app/chromadose[dicom] .
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

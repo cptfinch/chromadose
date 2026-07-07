@@ -114,6 +114,28 @@ class TestDosimetry:
         )
         assert resp.status_code == 422
 
+    def test_gamma_invalid_npy(self, client) -> None:  # type: ignore[no-untyped-def]
+        """A garbage upload is a clean 422, not an unhandled 500."""
+        resp = client.post(
+            "/api/gamma",
+            files={
+                "measured": ("m.npy", b"not a npy file", "application/octet-stream"),
+                "reference": ("r.npy", npy_bytes(np.ones((8, 8))), "application/octet-stream"),
+            },
+        )
+        assert resp.status_code == 422
+
+    def test_gamma_nonpositive_pixel_size(self, client) -> None:  # type: ignore[no-untyped-def]
+        resp = client.post(
+            "/api/gamma",
+            data={"pixel_size_mm": "0"},
+            files={
+                "measured": ("m.npy", npy_bytes(np.ones((8, 8))), "application/octet-stream"),
+                "reference": ("r.npy", npy_bytes(np.ones((8, 8))), "application/octet-stream"),
+            },
+        )
+        assert resp.status_code == 422
+
 
 @pytest.mark.skipif(not HAS_PYDICOM, reason="pydicom not installed")
 class TestDicom:
@@ -169,4 +191,17 @@ class TestReport:
         )
         assert resp.status_code == 200, resp.text
         assert resp.headers["content-type"] == "application/pdf"
+        assert resp.content[:4] == b"%PDF"
+
+    def test_report_empty_reference_is_ignored(self, client) -> None:  # type: ignore[no-untyped-def]
+        """An empty reference file field is treated as 'no reference', not an error."""
+        dose = np.ones((20, 20)) * 2.0
+        resp = client.post(
+            "/api/report",
+            files={
+                "measured": ("m.npy", npy_bytes(dose), "application/octet-stream"),
+                "reference": ("", b"", "application/octet-stream"),
+            },
+        )
+        assert resp.status_code == 200, resp.text
         assert resp.content[:4] == b"%PDF"
