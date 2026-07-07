@@ -37,8 +37,15 @@ def _temp_file(data: bytes, suffix: str) -> Iterator[Path]:
 
 
 def _load_npy(data: bytes) -> NDArray[np.floating]:
-    """Load a NumPy ``.npy`` payload from bytes (no pickle, arrays only)."""
-    array = np.load(io.BytesIO(data), allow_pickle=False)
+    """Load a NumPy ``.npy`` payload from bytes (no pickle, arrays only).
+
+    Raises ValueError (surfaced as a clean 422) for empty, truncated, or
+    otherwise invalid payloads, rather than letting an OSError become a 500.
+    """
+    try:
+        array = np.load(io.BytesIO(data), allow_pickle=False)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"invalid .npy file: {exc}") from exc
     return np.asarray(array, dtype=np.float64)
 
 
@@ -138,6 +145,8 @@ def run_gamma(
 
     from app.preview import array_to_png_datauri
 
+    if pixel_size_mm <= 0:
+        raise ValueError("pixel_size_mm must be greater than zero")
     dose_crit, dta_crit = parse_criteria(criteria)
     meas = _load_npy(measured)
     ref = _load_npy(reference)
@@ -219,9 +228,11 @@ def export_sr(
 
     meas = _load_npy(measured)
     gamma_result = None
-    if reference is not None:
+    if reference:
         from chromadose.analysis.gamma import gamma_2d
 
+        if pixel_size_mm <= 0:
+            raise ValueError("pixel_size_mm must be greater than zero")
         dose_crit, dta_crit = parse_criteria(criteria)
         gamma_result = gamma_2d(
             _load_npy(reference), meas,
@@ -259,7 +270,7 @@ def build_report(
     from chromadose.io.report import generate_report
 
     meas = _load_npy(measured)
-    ref = _load_npy(reference) if reference is not None else None
+    ref = _load_npy(reference) if reference else None
     dose_map = DoseMap(
         dose=meas,
         uncertainty=np.zeros_like(meas),
