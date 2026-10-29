@@ -8,10 +8,10 @@ import io
 import numpy as np
 import pytest
 import tifffile
+from chromadose.core.types import FitParams
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from chromadose.core.types import FitParams
 
 # Realistic EBT3 rational-function parameters: pixel(D) = (r + s*D) / (t + D).
 _RED = FitParams(r=0.655, s=0.037, t=2.956)

@@ -11,9 +11,9 @@ from __future__ import annotations
 import base64
 import io
 
+import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
-import numpy as np
 from numpy.typing import NDArray
 
 
