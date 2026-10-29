@@ -122,6 +122,8 @@ resampled = resample_to_film(rt_dose, film_shape=(500, 500), film_pixel_size_mm=
 from chromadose.io.dicom import save_dicom_dose
 # Write a measured dose map (Gy) back out as a DICOM RT Dose file
 save_dicom_dose(dose_map.dose, "film_dose.dcm", pixel_spacing_mm=(0.353, 0.353))
+```
+
 ### Beam Geometry (IEC 61217)
 ```python
 from chromadose.io.dicom import load_beam_geometry

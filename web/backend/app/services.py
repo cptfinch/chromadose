@@ -26,7 +26,7 @@ CLI_METHODS = ("micke", "mayer")
 @contextmanager
 def _temp_file(data: bytes, suffix: str) -> Iterator[Path]:
     """Write bytes to a NamedTemporaryFile and yield its path, cleaning up after."""
-    handle = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    handle = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)  # noqa: SIM115 — path is yielded, then removed in finally
     try:
         handle.write(data)
         handle.flush()
