@@ -102,5 +102,10 @@ jobs:
       - name: Lint (ruff)
         run: uv run ruff check app tests
 
+      - name: Check frontend script syntax
+        # The UI is a classic script with no build step, so a syntax error would
+        # otherwise only surface in a browser.
+        run: node --check ../frontend/app.js
+
       - name: Test (pytest)
         run: uv run pytest -v

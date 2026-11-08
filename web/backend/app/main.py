@@ -8,11 +8,23 @@ clinical decision-making. See the chromadose DISCLAIMER.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.routers import dicom_io, dosimetry, health
+
+# web/backend/app/main.py -> web/frontend. Override with CHROMADOSE_FRONTEND_DIR
+# (the Docker image does, because the package is installed into site-packages).
+_DEFAULT_FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+
+
+def _frontend_dir() -> Path | None:
+    """The directory holding the static UI, or None if it isn't present."""
+    path = Path(os.environ.get("CHROMADOSE_FRONTEND_DIR", _DEFAULT_FRONTEND_DIR))
+    return path if (path / "index.html").is_file() else None
 
 
 def create_app() -> FastAPI:
@@ -35,6 +47,12 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(dosimetry.router)
     app.include_router(dicom_io.router)
+
+    # Serve the single-page UI last so it never shadows an /api route. Absent in
+    # an API-only deployment, in which case "/" is simply a 404.
+    frontend = _frontend_dir()
+    if frontend is not None:
+        app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
     return app
 
 

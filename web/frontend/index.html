@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>chromadose · radiochromic film dosimetry</title>
+  <meta name="description" content="Convert scanned radiochromic films to dose, compare against a reference with gamma analysis, and export DICOM RT Dose, Structured Reports and PDF QA reports.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs>
+          <linearGradient id="film" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#2dd4bf"/>
+            <stop offset="0.55" stop-color="#3b82f6"/>
+            <stop offset="1" stop-color="#a855f7"/>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="28" height="28" rx="8" fill="url(#film)"/>
+        <circle cx="16" cy="16" r="9" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2"/>
+        <circle cx="16" cy="16" r="4" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2"/>
+      </svg>
+      <span class="brand-name">chromadose</span>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </header>
+
+  <div class="banner" role="note">
+    <strong>Research use only — not a medical device.</strong>
+    Results are for method development and QA research, and must be reviewed by a qualified medical physicist.
+  </div>
+
+  <div class="shell">
+    <nav class="steps" aria-label="Workflow">
+      <ol>
+        <li><button type="button" data-step="calibrate"><span class="num">1</span><span class="label">Calibrate<small>Fit film response</small></span></button></li>
+        <li><button type="button" data-step="solve"><span class="num">2</span><span class="label">Calculate dose<small>Film scan → dose map</small></span></button></li>
+        <li><button type="button" data-step="compare"><span class="num">3</span><span class="label">Compare<small>Gamma analysis</small></span></button></li>
+        <li><button type="button" data-step="export"><span class="num">4</span><span class="label">Export &amp; report<small>DICOM, SR, PDF</small></span></button></li>
+      </ol>
+      <p class="steps-tools">Tools</p>
+      <ol>
+        <li><button type="button" data-step="plan"><span class="num tool" aria-hidden="true">◇</span><span class="label">RT Plan geometry<small>Beam angles (IEC 61217)</small></span></button></li>
+      </ol>
+    </nav>
+
+    <main id="main" tabindex="-1">
+
+      <!-- 1 · Calibrate -->
+      <section id="step-calibrate" class="panel" aria-labelledby="h-calibrate" hidden>
+        <h2 id="h-calibrate">Calibrate</h2>
+        <p class="lede">Scan films exposed to known doses, then tell chromadose each film's dose. It fits a response curve per colour channel, which the next step uses to turn a treatment film into dose.</p>
+
+        <div class="card">
+          <h3>Build from calibration films</h3>
+          <label class="dropzone" id="cal-drop">
+            <input type="file" accept=".tif,.tiff,image/tiff" multiple>
+            <span class="dz-title">Drop calibration film scans here</span>
+            <span class="dz-hint">or click to choose · TIFF, one file per dose level</span>
+          </label>
+
+          <div id="cal-table-wrap" hidden>
+            <table class="table" id="cal-table">
+              <thead><tr><th scope="col">Film</th><th scope="col">Dose (Gy)</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <p class="hint">Doses are guessed from filenames like <code>cal_2Gy.tif</code>. Check each one before continuing.</p>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn primary" id="btn-calibrate" disabled>Build calibration</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>…or load a saved calibration</h3>
+          <label class="file-inline">
+            <span class="btn">Choose calibration JSON</span>
+            <input type="file" id="cal-json" accept=".json,application/json">
+            <span class="file-name" id="cal-json-name">No file chosen</span>
+          </label>
+        </div>
+
+        <div class="msg" id="msg-calibrate" role="status" aria-live="polite"></div>
+
+        <div class="card" id="cal-result" hidden>
+          <h3>Calibration <span class="chip good">ready</span></h3>
+          <div class="two-col">
+            <div id="cal-chart" class="chart"></div>
+            <div>
+              <table class="table compact" id="cal-fit">
+                <thead><tr><th scope="col">Channel</th><th scope="col">r</th><th scope="col">s</th><th scope="col">t</th></tr></thead>
+                <tbody></tbody>
+              </table>
+              <p class="hint">Response model: pixel(D) = (r + s·D) / (t + D)</p>
+              <div class="actions">
+                <button type="button" class="btn" id="btn-cal-download">Download calibration.json</button>
+                <button type="button" class="btn primary" data-goto="solve">Continue →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2 · Solve -->
+      <section id="step-solve" class="panel" aria-labelledby="h-solve" hidden>
+        <h2 id="h-solve">Calculate dose</h2>
+        <p class="lede">Upload the scanned treatment film and convert it to a dose map using your calibration.</p>
+
+        <p class="callout" id="solve-needs-cal" hidden>No calibration yet. <button type="button" class="link" data-goto="calibrate">Build or load one first</button>.</p>
+
+        <div class="card">
+          <label class="dropzone" id="film-drop">
+            <input type="file" accept=".tif,.tiff,image/tiff">
+            <span class="dz-title">Drop the treatment film scan here</span>
+            <span class="dz-hint">or click to choose · TIFF</span>
+          </label>
+          <p class="file-line" id="film-name" hidden></p>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Method</span>
+              <select id="method"></select>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn primary" id="btn-solve" disabled>Calculate dose</button>
+          </div>
+        </div>
+
+        <div class="msg" id="msg-solve" role="status" aria-live="polite"></div>
+
+        <div class="card" id="solve-result" hidden>
+          <h3>Dose map</h3>
+          <div class="stats" id="solve-stats"></div>
+          <img class="preview" id="solve-img" alt="Colour-mapped dose map, in Gy">
+          <div class="actions">
+            <button type="button" class="btn" id="btn-dose-download">Download dose.npy</button>
+            <button type="button" class="btn primary" data-goto="compare">Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · Compare -->
+      <section id="step-compare" class="panel" aria-labelledby="h-compare" hidden>
+        <h2 id="h-compare">Compare with a reference</h2>
+        <p class="lede">Run a 2D gamma analysis of the measured dose against a reference distribution, such as the TPS plane resampled to the film grid.</p>
+
+        <div class="card">
+          <h3>Measured dose</h3>
+          <p class="source" data-measured-line>None yet. Calculate one in step 2, or upload a <code>.npy</code> below.</p>
+          <label class="file-inline">
+            <span class="btn">Upload measured .npy</span>
+            <input type="file" accept=".npy" data-measured-input>
+          </label>
+
+          <h3>Reference dose</h3>
+          <label class="dropzone" id="ref-drop">
+            <input type="file" accept=".npy">
+            <span class="dz-title">Drop the reference dose here</span>
+            <span class="dz-hint">or click to choose · NumPy <code>.npy</code> in Gy, same shape as the measured dose</span>
+          </label>
+          <p class="file-line" id="ref-name" hidden></p>
+        </div>
+
+        <div class="card">
+          <h3>Criteria</h3>
+          <div class="field-row">
+            <label class="field"><span>Dose difference (%)</span><input type="number" step="0.1" min="0.1" value="3" data-sync="dose-crit"></label>
+            <label class="field"><span>Distance to agreement (mm)</span><input type="number" step="0.1" min="0.1" value="3" data-sync="dta-crit"></label>
+            <label class="field"><span>Low-dose threshold (%)</span><input type="number" step="1" min="0" max="100" value="10" data-sync="threshold"></label>
+            <label class="field"><span>Pixel size (mm)</span><input type="number" step="0.001" min="0.001" value="0.353" data-sync="pixel"></label>
+            <label class="field"><span>Target pass rate (%)</span><input type="number" step="1" min="0" max="100" value="95" id="target-pass"></label>
+          </div>
+          <p class="hint">Pixel size = 25.4 ÷ scan DPI (72 dpi → 0.353 mm, 150 dpi → 0.169 mm). The target only colours the result; it is not a clinical standard.</p>
+          <div class="actions">
+            <button type="button" class="btn primary" id="btn-gamma" disabled>Run gamma analysis</button>
+          </div>
+        </div>
+
+        <div class="msg" id="msg-compare" role="status" aria-live="polite"></div>
+
+        <div class="card" id="gamma-result" hidden>
+          <h3>Result</h3>
+          <div class="passrate" id="gamma-pass">
+            <span class="big" id="gamma-pct">–</span>
+            <span class="meta" id="gamma-meta"></span>
+          </div>
+          <div class="stats" id="gamma-stats"></div>
+          <img class="preview" id="gamma-img" alt="Gamma index map; values at or below 1 pass">
+          <p class="hint">Gamma index per pixel: 1 or below passes. White areas fall under the low-dose threshold (a percentage of the reference maximum) and are not evaluated.</p>
+          <div class="actions">
+            <button type="button" class="btn primary" data-goto="export">Continue →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 · Export -->
+      <section id="step-export" class="panel" aria-labelledby="h-export" hidden>
+        <h2 id="h-export">Export &amp; report</h2>
+        <p class="lede">Archive the result as DICOM RT Dose, a DICOM Structured Report, or a PDF QA report.</p>
+
+        <div class="card">
+          <h3>Inputs</h3>
+          <p class="source" data-measured-line>None yet. Calculate a dose map in step 2, or upload a <code>.npy</code>.</p>
+          <label class="file-inline">
+            <span class="btn">Upload measured .npy</span>
+            <input type="file" accept=".npy" data-measured-input>
+          </label>
+          <p class="source" id="export-ref-line">No reference. The report and SR will omit the gamma section. Add one in step 3.</p>
+        </div>
+
+        <div class="card">
+          <h3>Details</h3>
+          <div class="field-row">
+            <label class="field"><span>Patient name</span><input type="text" id="x-patient-name" autocomplete="off"></label>
+            <label class="field"><span>Patient ID</span><input type="text" id="x-patient-id" autocomplete="off"></label>
+            <label class="field"><span>Plan label</span><input type="text" id="x-plan" autocomplete="off"></label>
+            <label class="field"><span>Film type</span><input type="text" id="x-film" placeholder="EBT3" autocomplete="off"></label>
+            <label class="field"><span>Method</span><input type="text" id="x-method" autocomplete="off"></label>
+            <label class="field"><span>Report title</span><input type="text" id="x-title" value="Film Dosimetry QA Report" autocomplete="off"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Dose difference (%)</span><input type="number" step="0.1" min="0.1" value="3" data-sync="dose-crit"></label>
+            <label class="field"><span>DTA (mm)</span><input type="number" step="0.1" min="0.1" value="3" data-sync="dta-crit"></label>
+            <label class="field"><span>Threshold (%)</span><input type="number" step="1" min="0" max="100" value="10" data-sync="threshold"></label>
+            <label class="field"><span>Pixel size (mm)</span><input type="number" step="0.001" min="0.001" value="0.353" data-sync="pixel"></label>
+          </div>
+          <p class="hint">Patient identifiers are written into the exported files. Use anonymised IDs unless your department's policy says otherwise. Nothing is stored in your browser.</p>
+        </div>
+
+        <div class="card">
+          <h3>Downloads</h3>
+          <div class="actions wrap">
+            <button type="button" class="btn" data-export="rtdose">DICOM RT Dose (.dcm)</button>
+            <button type="button" class="btn" data-export="sr">DICOM Structured Report (.dcm)</button>
+            <button type="button" class="btn primary" data-export="report">PDF QA report</button>
+          </div>
+        </div>
+
+        <div class="msg" id="msg-export" role="status" aria-live="polite"></div>
+      </section>
+
+      <!-- Tool · RT Plan geometry -->
+      <section id="step-plan" class="panel" aria-labelledby="h-plan" hidden>
+        <h2 id="h-plan">RT Plan geometry</h2>
+        <p class="lede">Read the gantry, collimator and couch angles (IEC 61217) of each beam from a DICOM RT Plan.</p>
+
+        <div class="card">
+          <label class="dropzone" id="plan-drop">
+            <input type="file" accept=".dcm,application/dicom">
+            <span class="dz-title">Drop a DICOM RT Plan here</span>
+            <span class="dz-hint">or click to choose · .dcm</span>
+          </label>
+          <p class="file-line" id="plan-name" hidden></p>
+          <label class="check"><input type="checkbox" id="plan-setup"> Include setup beams</label>
+          <div class="actions">
+            <button type="button" class="btn primary" id="btn-plan" disabled>Read beams</button>
+          </div>
+        </div>
+
+        <div class="msg" id="msg-plan" role="status" aria-live="polite"></div>
+
+        <div class="card" id="plan-result" hidden>
+          <h3>Beams</h3>
+          <div class="table-scroll">
+            <table class="table" id="plan-table">
+              <thead><tr><th scope="col">#</th><th scope="col">Name</th><th scope="col">Gantry °</th><th scope="col">Collimator °</th><th scope="col">Couch °</th><th scope="col">Energy</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="foot">
+    chromadose web · research use only · uploads are processed on the server and deleted afterwards
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
