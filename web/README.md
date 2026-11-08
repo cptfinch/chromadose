@@ -7,12 +7,14 @@ CLI. The library and CLI stay the source of truth; this is an additional surface
 ```
 web/
 ├── backend/     FastAPI service wrapping the chromadose Python package (implemented)
-└── frontend/    Single-page UI — the imported Chromadose Web App design (pending)
+└── frontend/    Single-page UI (first pass, no build step), served by the backend at /
 ```
 
 - **backend/** — HTTP API mapping 1:1 to the library functions (calibrate, solve,
   gamma, plan-geometry, export RT Dose / SR, PDF report). See `backend/README.md`.
-- **frontend/** — will hold the imported *Chromadose Web App* design, wired to the
-  backend API.
+- **frontend/** — a first-pass UI covering calibrate → dose → gamma → export, plus
+  an RT Plan geometry tool. The backend serves it at `/`, so one process runs the
+  whole app. See `frontend/README.md`. It stands in until the Claude Design mock
+  is imported.
 
 > **RESEARCH USE ONLY — NOT A MEDICAL DEVICE.** See the chromadose `DISCLAIMER.md`.
