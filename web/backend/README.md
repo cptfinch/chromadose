@@ -31,7 +31,7 @@ uv sync --extra dev          # installs FastAPI + the sibling chromadose package
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-Then open <http://localhost:8000/docs>.
+Then open <http://localhost:8000/> for the web UI, or <http://localhost:8000/docs> for the API.
 
 ## Test
 

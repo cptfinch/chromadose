@@ -14,6 +14,11 @@ WORKDIR /app
 # pyproject expects (../../chromadose).
 COPY chromadose /app/chromadose
 COPY web/backend /app/web/backend
+COPY web/frontend /app/web/frontend
+
+# The backend package is installed into site-packages below, so tell it where
+# the static UI lives instead of letting it guess from its own location.
+ENV CHROMADOSE_FRONTEND_DIR=/app/web/frontend
 
 WORKDIR /app/web/backend
 # `[tool.uv.sources]` (the local path dependency) is uv-only, so plain pip would
