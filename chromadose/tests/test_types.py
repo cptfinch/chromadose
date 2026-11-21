@@ -1,5 +1,7 @@
 """Tests for core data types."""
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -36,6 +38,52 @@ class TestFitParams:
         doses = np.array([0.0, 1.0, 5.0])
         deriv = p.dpixel_ddose(doses)
         assert np.all(deriv < 0)
+
+
+class TestFitParamsAsymptoteGuard:
+    """The response curve tends to ``s``, so a pixel at ``s`` has no finite dose."""
+
+    P = FitParams(r=0.655, s=0.037, t=2.956)
+
+    def test_pixel_on_asymptote_is_finite_and_silent(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # a divide-by-zero warning would fail the test
+            dose = self.P.dose(np.array([self.P.s]))
+        assert np.all(np.isfinite(dose))
+        assert dose[0] > 0  # an exact zero denominator counts as positive
+
+    def test_sign_follows_the_side_of_the_asymptote(self) -> None:
+        above = self.P.dose(np.array([self.P.s + 1e-12]))
+        below = self.P.dose(np.array([self.P.s - 1e-12]))
+        assert np.isfinite(above[0]) and np.isfinite(below[0])
+        assert above[0] > 0
+        assert below[0] < 0
+
+    def test_values_outside_the_guard_are_unchanged(self) -> None:
+        pixels = np.array([self.P.s + 1e-6, 0.05, 0.1, 0.2, 0.3])
+        expected = (self.P.r - pixels * self.P.t) / (pixels - self.P.s)
+        np.testing.assert_allclose(self.P.dose(pixels), expected, rtol=1e-12)
+
+    def test_nan_pixel_stays_nan(self) -> None:
+        assert np.all(np.isnan(self.P.dose(np.array([np.nan]))))
+
+    def test_shape_is_preserved(self) -> None:
+        pixels = np.full((4, 5), 0.1)
+        assert self.P.dose(pixels).shape == (4, 5)
+        assert self.P.ddose_dpixel(pixels).shape == (4, 5)
+
+    def test_derivative_matches_finite_difference(self) -> None:
+        pixels = np.array([0.06, 0.1, 0.15])
+        h = 1e-7
+        numeric = (self.P.dose(pixels + h) - self.P.dose(pixels - h)) / (2 * h)
+        np.testing.assert_allclose(self.P.ddose_dpixel(pixels), numeric, rtol=1e-6)
+
+    def test_derivative_on_asymptote_is_finite_and_silent(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            deriv = self.P.ddose_dpixel(np.array([self.P.s]))
+        assert np.all(np.isfinite(deriv))
+        assert deriv[0] < 0  # dose falls as the pixel value rises
 
 
 class TestCalibrationData:

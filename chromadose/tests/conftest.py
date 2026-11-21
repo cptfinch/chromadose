@@ -62,3 +62,17 @@ def synthetic_film() -> FilmScan:
     blue = KNOWN_BLUE.pixel(dose_grid)
 
     return FilmScan(red=red, green=green, blue=blue, dpi=72.0)
+
+
+@pytest.fixture
+def film_with_red_on_asymptote(synthetic_film: FilmScan) -> FilmScan:
+    """The synthetic film with one red pixel sitting exactly on the response asymptote.
+
+    A pixel at ``s`` has no finite dose. It used to cause divide-by-zero warnings in
+    every solver and a NaN pixel in Mayer's.
+    """
+    red = synthetic_film.red.copy()
+    red[3, 3] = KNOWN_RED.s
+    return FilmScan(
+        red=red, green=synthetic_film.green, blue=synthetic_film.blue, dpi=synthetic_film.dpi
+    )
