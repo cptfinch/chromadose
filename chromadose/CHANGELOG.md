@@ -38,6 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `chromadose plan-geometry` CLI command listing an RT Plan's beam angles.
 
 ### Fixed
+- Pixel size no longer silently defaults to 1.0 mm (#18). Gamma converts the
+  distance-to-agreement from mm to pixels, so a wrong scale changes the pass
+  rate. `batch-qa` now derives it per film from the TIFF resolution (warning if
+  the file has none); `gamma`, `report`, `export-dicom` and `export-sr` still
+  fall back to 1.0 mm for `.npy` input but warn. TIFF loading now honours the
+  ResolutionUnit tag (centimetre scans were read as pixels/inch) and no longer
+  reads resolution-less files as 1 dpi; `FilmScan.dpi_assumed` flags a fallback.
+  Web API: `pixel_size_mm` is now required on `/api/gamma`, `/api/export/rtdose`
+  and `/api/export/sr` (contract change), `/api/solve` returns `pixel_size_mm`
+  and `dpi_assumed`, and the UI fills the field from the scan.
 - `chromadose --version` reported a hard-coded `1.0.0`; it now reports the
   installed package version (`chromadose.__version__`)
 - `chromadose solve --method multigaussian` was advertised in the CLI help

@@ -124,6 +124,10 @@ def solve_dose(film: bytes, calibration: dict[str, Any], method: str) -> dict[st
     return {
         "method": result.method,
         "shape": [int(dose.shape[0]), int(dose.shape[1])],
+        # Scale read from the film's TIFF, for the caller to reuse in gamma/export.
+        # dpi_assumed means the TIFF had no usable resolution and this is a guess.
+        "pixel_size_mm": float(scan.pixel_size_mm),
+        "dpi_assumed": bool(scan.dpi_assumed),
         "max_dose_gy": float(np.max(dose)),
         "mean_dose_gy": float(np.mean(dose)),
         "mean_uncertainty_gy": float(np.mean(result.uncertainty)),

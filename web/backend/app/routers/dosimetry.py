@@ -58,7 +58,7 @@ async def gamma(
     reference: UploadFile = File(..., description="Reference dose (.npy)"),
     criteria: str = Form("3/3", description="Dose%/DTA(mm), e.g. '3/3'"),
     threshold: float = Form(10.0, description="Dose threshold (% of max)"),
-    pixel_size_mm: float = Form(1.0, description="Pixel size in mm"),
+    pixel_size_mm: float = Form(..., description="Pixel size in mm (25.4 / scan DPI)"),
 ) -> dict[str, Any]:
     """Run 2D gamma analysis between a measured and reference dose distribution."""
     try:

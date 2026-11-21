@@ -420,6 +420,7 @@
         stats.appendChild(stat("Size", res.shape[1] + " × " + res.shape[0], "px"));
         $("#solve-img").src = res.preview_png;
         $("#solve-result").hidden = false;
+        applyFilmScale(res);
         state.lastMethod = method;
         $("#x-method").value = method;
         state.measured = {
@@ -486,6 +487,20 @@
 
   function numberAt(name) {
     return $('input[data-sync="' + name + '"]').value;
+  }
+
+  // Fill the pixel size from the film's own TIFF resolution. If the TIFF had none,
+  // the value is a guess, so say so rather than let it pass as a measurement.
+  function applyFilmScale(res) {
+    if (typeof res.pixel_size_mm !== "number") { return; }
+    $$('input[data-sync="pixel"]').forEach(function (o) { o.value = res.pixel_size_mm.toFixed(3); });
+    var text = res.dpi_assumed
+      ? "Pixel size " + res.pixel_size_mm.toFixed(3) + " mm is a guess: the scan has no resolution in its TIFF. Enter the real value (25.4 ÷ scan DPI) before comparing or exporting."
+      : "Pixel size " + res.pixel_size_mm.toFixed(3) + " mm, read from the film scan.";
+    $$(".pixel-note").forEach(function (n) {
+      n.textContent = text;
+      n.classList.toggle("warn", !!res.dpi_assumed);
+    });
   }
 
   // Criteria and pixel size appear in both Compare and Export; keep them equal.

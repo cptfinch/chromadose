@@ -61,6 +61,9 @@ class TestDosimetry:
         body = resp.json()
         assert body["method"]
         assert body["shape"] == [16, 16]
+        # The film fixture carries no resolution tag, so the scale is a flagged guess.
+        assert body["dpi_assumed"] is True
+        assert body["pixel_size_mm"] == pytest.approx(25.4 / 72)
         assert body["max_dose_gy"] == pytest.approx(5.0, abs=0.2)
         assert body["preview_png"].startswith("data:image/png;base64,")
         assert body["dose_npy_b64"]
@@ -96,6 +99,7 @@ class TestDosimetry:
     def test_gamma_shape_mismatch(self, client) -> None:  # type: ignore[no-untyped-def]
         resp = client.post(
             "/api/gamma",
+            data={"pixel_size_mm": "0.353"},
             files={
                 "measured": ("m.npy", npy_bytes(np.ones((10, 10))), "application/octet-stream"),
                 "reference": ("r.npy", npy_bytes(np.ones((12, 12))), "application/octet-stream"),
@@ -106,7 +110,7 @@ class TestDosimetry:
     def test_gamma_bad_criteria(self, client) -> None:  # type: ignore[no-untyped-def]
         resp = client.post(
             "/api/gamma",
-            data={"criteria": "3"},
+            data={"criteria": "3", "pixel_size_mm": "0.353"},
             files={
                 "measured": ("m.npy", npy_bytes(np.ones((8, 8))), "application/octet-stream"),
                 "reference": ("r.npy", npy_bytes(np.ones((8, 8))), "application/octet-stream"),
@@ -118,12 +122,22 @@ class TestDosimetry:
         """A garbage upload is a clean 422, not an unhandled 500."""
         resp = client.post(
             "/api/gamma",
+            data={"pixel_size_mm": "0.353"},
             files={
                 "measured": ("m.npy", b"not a npy file", "application/octet-stream"),
                 "reference": ("r.npy", npy_bytes(np.ones((8, 8))), "application/octet-stream"),
             },
         )
         assert resp.status_code == 422
+
+    @pytest.mark.parametrize("path", ["/api/gamma", "/api/export/sr", "/api/export/rtdose"])
+    def test_pixel_size_is_required(self, client, path) -> None:  # type: ignore[no-untyped-def]
+        """No silent 1 mm default: the scale changes gamma's DTA and the DICOM spacing."""
+        arr = ("a.npy", npy_bytes(np.ones((8, 8))), "application/octet-stream")
+        files = {"dose": arr} if path.endswith("rtdose") else {"measured": arr, "reference": arr}
+        resp = client.post(path, files=files)
+        assert resp.status_code == 422
+        assert "pixel_size_mm" in resp.text
 
     def test_gamma_nonpositive_pixel_size(self, client) -> None:  # type: ignore[no-untyped-def]
         resp = client.post(
@@ -166,12 +180,28 @@ class TestDicom:
         # DICOM files carry the "DICM" magic at byte offset 128.
         assert resp.content[128:132] == b"DICM"
 
+    def test_solve_reports_scale_from_tiff(self, client) -> None:  # type: ignore[no-untyped-def]
+        from .conftest import film_bytes
+
+        cal = _calibrate(client)
+        resp = client.post(
+            "/api/solve",
+            data={"method": "micke"},
+            files={
+                "film": ("film.tif", film_bytes(np.full((16, 16), 2.0), dpi=150), "image/tiff"),
+                "calibration": ("cal.json", json.dumps(cal).encode(), "application/json"),
+            },
+        )
+        body = resp.json()
+        assert body["dpi_assumed"] is False
+        assert body["pixel_size_mm"] == pytest.approx(25.4 / 150)
+
     def test_export_sr(self, client) -> None:  # type: ignore[no-untyped-def]
         meas = np.ones((20, 20)) * 2.01
         ref = np.ones((20, 20)) * 2.0
         resp = client.post(
             "/api/export/sr",
-            data={"criteria": "3/3", "method": "micke"},
+            data={"criteria": "3/3", "method": "micke", "pixel_size_mm": "0.353"},
             files={
                 "measured": ("m.npy", npy_bytes(meas), "application/octet-stream"),
                 "reference": ("r.npy", npy_bytes(ref), "application/octet-stream"),

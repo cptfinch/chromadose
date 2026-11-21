@@ -306,3 +306,5 @@ main { min-width: 0; outline: none; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+.hint.pixel-note:empty { display: none; }
+.hint.pixel-note.warn { color: var(--warn); background: var(--warn-soft); padding: 8px 10px; border-radius: 6px; }

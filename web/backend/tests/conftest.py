@@ -26,13 +26,14 @@ def client() -> TestClient:
     return TestClient(create_app())
 
 
-def film_bytes(dose_grid: np.ndarray) -> bytes:
+def film_bytes(dose_grid: np.ndarray, dpi: float | None = None) -> bytes:
     """Encode a dose grid as a synthetic RGB float TIFF (bytes)."""
     rgb = np.stack(
         [_RED.pixel(dose_grid), _GREEN.pixel(dose_grid), _BLUE.pixel(dose_grid)], axis=-1
     ).astype(np.float32)
     buffer = io.BytesIO()
-    tifffile.imwrite(buffer, rgb, photometric="rgb")
+    extra = {"resolution": (dpi, dpi), "resolutionunit": "INCH"} if dpi else {}
+    tifffile.imwrite(buffer, rgb, photometric="rgb", **extra)
     return buffer.getvalue()
 
 
