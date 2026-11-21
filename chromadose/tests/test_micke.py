@@ -1,5 +1,7 @@
 """Tests for the Micke et al. (2011) dose solver."""
 
+import warnings
+
 import numpy as np
 
 from chromadose.core.types import CalibrationResult, FilmScan
@@ -66,3 +68,12 @@ class TestMickeSolver:
         assert result.dose_g.shape == synthetic_film.shape
         assert result.dose_b.shape == synthetic_film.shape
         assert result.dose.shape == synthetic_film.shape
+
+    def test_pixel_on_asymptote_is_finite_and_silent(
+        self, film_with_red_on_asymptote: FilmScan, synthetic_cal_result: CalibrationResult
+    ) -> None:
+        """A pixel exactly on the asymptote used to raise a divide-by-zero warning."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            dose_map = MickeSolver().solve(film_with_red_on_asymptote, synthetic_cal_result)
+        assert np.all(np.isfinite(dose_map.dose))

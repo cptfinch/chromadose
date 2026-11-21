@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `chromadose plan-geometry` CLI command listing an RT Plan's beam angles.
 
 ### Fixed
+- `FitParams.dose` divided by `pixel - s` with no guard, so a pixel on the
+  response asymptote `s` raised a divide-by-zero warning and, in Mayer's solver,
+  produced a NaN pixel. Mayer carried its own guard, but it used `np.sign`, which
+  is `0` for an exact zero and left the division unprotected. There is now one
+  guard in `FitParams` (the denominator is held at 1e-10 in magnitude with its
+  sign preserved; NaN input stays NaN), shared through a new
+  `FitParams.ddose_dpixel`. Ordinary pixel values are unaffected (#19)
 - `chromadose --version` reported a hard-coded `1.0.0`; it now reports the
   installed package version (`chromadose.__version__`)
 - `chromadose solve --method multigaussian` was advertised in the CLI help

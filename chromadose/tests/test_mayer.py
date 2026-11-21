@@ -1,5 +1,7 @@
 """Tests for the Mayer et al. (2012) analytical dose solver."""
 
+import warnings
+
 import numpy as np
 
 from chromadose.core.types import CalibrationResult, FilmScan
@@ -75,3 +77,12 @@ class TestMayerSolver:
         # derivative-based approach, so allow 20% median error
         relative_error = np.abs(result.dose[5, :] - doses) / doses
         assert np.median(relative_error) < 0.20
+
+    def test_pixel_on_asymptote_gives_finite_dose(
+        self, film_with_red_on_asymptote: FilmScan, synthetic_cal_result: CalibrationResult
+    ) -> None:
+        """A pixel exactly on the asymptote used to give NaN and divide-by-zero warnings."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            dose_map = MayerSolver().solve(film_with_red_on_asymptote, synthetic_cal_result)
+        assert np.all(np.isfinite(dose_map.dose))

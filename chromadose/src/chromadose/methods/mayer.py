@@ -132,14 +132,9 @@ def _channel_dose_and_derivative(
                     = [-t*pixel + t*s - r + pixel*t] / (pixel - s)²
                     = (t*s - r) / (pixel - s)²
     """
-    # Dose from inverse rational function
-    denom = pixels - params.s
-    # Avoid division by zero at pixels ≈ s (asymptotic value)
-    safe_denom = np.where(np.abs(denom) > 1e-10, denom, np.sign(denom) * 1e-10)
-
-    dose = (params.r - pixels * params.t) / safe_denom
-
-    # Derivative dD/d(pixel)
-    derivative = (params.t * params.s - params.r) / safe_denom**2
+    # Both share FitParams' guarded denominator, so a pixel at the asymptote
+    # s gives a large finite dose rather than a division by zero.
+    dose = params.dose(pixels)
+    derivative = params.ddose_dpixel(pixels)
 
     return dose, np.abs(derivative)
