@@ -13,6 +13,14 @@ from chromadose.core.types import FilmScan
 # 16-bit max value for normalization
 _UINT16_MAX = 65535.0
 
+# Used when a TIFF carries no usable resolution; FilmScan.dpi_assumed is then True.
+_DEFAULT_DPI = 72.0
+
+# TIFF ResolutionUnit values (tag 296).
+_RESUNIT_INCH = 2
+_RESUNIT_CENTIMETER = 3
+_CM_PER_INCH = 2.54
+
 
 def load_tiff(path: str | Path) -> FilmScan:
     """Load a scanned TIFF image and return a FilmScan with normalized RGB channels.
@@ -63,15 +71,25 @@ def load_tiff_averaged(paths: list[str | Path]) -> FilmScan:
     green = np.mean([s.green for s in scans], axis=0)
     blue = np.mean([s.blue for s in scans], axis=0)
 
-    return FilmScan(red=red, green=green, blue=blue, dpi=scans[0].dpi)
+    return FilmScan(
+        red=red, green=green, blue=blue, dpi=scans[0].dpi, dpi_assumed=scans[0].dpi_assumed
+    )
 
 
-def _array_to_film_scan(data: NDArray, dpi: float) -> FilmScan:  # type: ignore[type-arg]
-    """Convert a raw numpy array from TIFF to a FilmScan."""
+def _array_to_film_scan(data: NDArray, dpi: float | None) -> FilmScan:  # type: ignore[type-arg]
+    """Convert a raw numpy array from TIFF to a FilmScan.
+
+    ``dpi=None`` means the file gave no usable resolution: the default is used
+    and the scan is marked ``dpi_assumed``.
+    """
+    assumed = dpi is None
+    dpi = _DEFAULT_DPI if dpi is None else dpi
     if data.ndim == 2:
         # Grayscale — treat as single channel replicated
         normalized = _normalize(data)
-        return FilmScan(red=normalized, green=normalized, blue=normalized, dpi=dpi)
+        return FilmScan(
+            red=normalized, green=normalized, blue=normalized, dpi=dpi, dpi_assumed=assumed
+        )
 
     if data.ndim == 3:
         if data.shape[2] <= 4:
@@ -85,7 +103,7 @@ def _array_to_film_scan(data: NDArray, dpi: float) -> FilmScan:  # type: ignore[
             green = _normalize(data[1, :, :])
             blue = _normalize(data[2, :, :])
 
-        return FilmScan(red=red, green=green, blue=blue, dpi=dpi)
+        return FilmScan(red=red, green=green, blue=blue, dpi=dpi, dpi_assumed=assumed)
 
     raise ValueError(f"Unexpected TIFF array shape: {data.shape}")
 
@@ -104,20 +122,36 @@ def _normalize(channel: NDArray) -> NDArray[np.floating]:  # type: ignore[type-a
         return channel.astype(np.float64) / _UINT16_MAX
 
 
-def _extract_dpi(tif: tifffile.TiffFile) -> float:
-    """Extract DPI from TIFF metadata. Defaults to 72 if not found."""
+def _extract_dpi(tif: tifffile.TiffFile) -> float | None:
+    """DPI from the TIFF's resolution tags, or None if it can't be determined.
+
+    Honours ``ResolutionUnit``: inches (also the TIFF default when the tag is
+    absent) are used as is, and centimetres are converted. A unit of "none"
+    means the numbers carry no physical scale (tifffile writes 1/1 with that
+    unit when no resolution is given), so it is treated as unknown rather than
+    read as 1 dpi.
+    """
     try:
         page = tif.pages[0]
         # Only TiffPage carries .tags — TiffFrame is a lightweight view.
         if not isinstance(page, tifffile.TiffPage):
-            return 72.0
+            return None
         tags = page.tags
-        # Check for XResolution tag (tag 282)
-        if "XResolution" in tags:
-            res = tags["XResolution"].value
-            if isinstance(res, tuple) and len(res) == 2:
-                return float(res[0]) / float(res[1])
-            return float(res)
-    except (AttributeError, KeyError, TypeError, ZeroDivisionError):
-        pass
-    return 72.0
+        if "XResolution" not in tags:
+            return None
+        res = tags["XResolution"].value
+        if isinstance(res, tuple) and len(res) == 2:
+            per_unit = float(res[0]) / float(res[1])
+        else:
+            per_unit = float(res)
+        unit = int(tags["ResolutionUnit"].value) if "ResolutionUnit" in tags else _RESUNIT_INCH
+    except (AttributeError, KeyError, TypeError, ValueError, ZeroDivisionError):
+        return None
+
+    if not np.isfinite(per_unit) or per_unit <= 0:
+        return None
+    if unit == _RESUNIT_INCH:
+        return per_unit
+    if unit == _RESUNIT_CENTIMETER:
+        return per_unit * _CM_PER_INCH
+    return None

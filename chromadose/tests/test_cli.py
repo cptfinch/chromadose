@@ -315,3 +315,72 @@ class TestCLI:
             assert "2 beam(s)" in out
             assert "LLAT" in out
             assert "90.0" in out
+
+
+class TestPixelSize:
+    """Pixel size drives gamma's mm->pixel conversion, so its source matters (#18)."""
+
+    @staticmethod
+    def _capture_gamma(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+        import chromadose.analysis.gamma as gamma_mod
+
+        seen: list[float] = []
+        real = gamma_mod.gamma_2d
+
+        def spy(*args, **kwargs):  # type: ignore[no-untyped-def]
+            seen.append(kwargs["pixel_size_mm"])
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(gamma_mod, "gamma_2d", spy)
+        return seen
+
+    @staticmethod
+    def _batch(tmp: Path, *extra: str, dpi: float | None = 150.0) -> int:
+        cal_path = tmp / "cal.json"
+        _write_calibration(cal_path)
+        doses = np.broadcast_to(np.linspace(0, 5, 12), (12, 12))
+        film = tmp / "film.tif"
+        rgb = np.stack(
+            [_RED.pixel(doses), _GREEN.pixel(doses), _BLUE.pixel(doses)], axis=-1
+        ).astype(np.float32)
+        if dpi is None:
+            tifffile.imwrite(film, rgb, photometric="rgb")
+        else:
+            tifffile.imwrite(film, rgb, photometric="rgb", resolution=(dpi, dpi), resolutionunit="INCH")
+        ref = tmp / "ref.npy"
+        np.save(ref, np.asarray(doses, dtype=float))
+        return main([
+            "batch-qa", str(film), "--cal", str(cal_path), "--ref", str(ref),
+            "--outdir", str(tmp / "out"), *extra,
+        ])
+
+    def test_batch_uses_film_dpi(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                 capsys: pytest.CaptureFixture[str]) -> None:
+        seen = self._capture_gamma(monkeypatch)
+        assert self._batch(tmp_path, dpi=150.0) == 0
+        assert seen == [pytest.approx(25.4 / 150)]
+        assert "Warning" not in capsys.readouterr().err
+
+    def test_batch_warns_when_dpi_assumed(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                          capsys: pytest.CaptureFixture[str]) -> None:
+        seen = self._capture_gamma(monkeypatch)
+        assert self._batch(tmp_path, dpi=None) == 0
+        assert seen == [pytest.approx(25.4 / 72)]
+        assert "no usable resolution" in capsys.readouterr().err
+
+    def test_batch_explicit_pixel_size_wins(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                            capsys: pytest.CaptureFixture[str]) -> None:
+        seen = self._capture_gamma(monkeypatch)
+        assert self._batch(tmp_path, "--pixel-size", "0.5", dpi=None) == 0
+        assert seen == [0.5]
+        assert "Warning" not in capsys.readouterr().err
+
+    def test_gamma_warns_without_pixel_size(self, tmp_path: Path,
+                                            capsys: pytest.CaptureFixture[str]) -> None:
+        for name in ("ref", "meas"):
+            np.save(tmp_path / f"{name}.npy", np.full((20, 20), 2.0))
+        args = ["gamma", "--measured", str(tmp_path / "meas.npy"), "--reference", str(tmp_path / "ref.npy")]
+        assert main(args) == 0
+        assert "--pixel-size not given" in capsys.readouterr().err
+        assert main([*args, "--pixel-size", "0.353"]) == 0
+        assert "--pixel-size not given" not in capsys.readouterr().err

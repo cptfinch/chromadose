@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     gamma_parser.add_argument("--reference", required=True, help="Reference dose (.npy)")
     gamma_parser.add_argument("--criteria", default="3/3", help="Dose%%/DTA(mm), e.g. '3/3'")
     gamma_parser.add_argument("--threshold", type=float, default=10.0, help="Dose threshold (%%)")
-    gamma_parser.add_argument("--pixel-size", type=float, default=1.0, help="Pixel size in mm")
+    gamma_parser.add_argument("--pixel-size", type=float, default=None, help=_PIXEL_SIZE_HELP)
     gamma_parser.add_argument("-o", "--output", help="Save gamma map (.npy)")
 
     # --- report ---
@@ -78,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     report_parser.add_argument("--measured", required=True, help="Measured dose (.npy)")
     report_parser.add_argument("--reference", help="Reference dose (.npy)")
     report_parser.add_argument("--cal", help="Calibration JSON for per-channel info")
+    report_parser.add_argument("--pixel-size", type=float, default=None, help=_PIXEL_SIZE_HELP)
     report_parser.add_argument("--method", default="micke", help="Method name for the report")
     report_parser.add_argument("--title", default="Film Dosimetry QA Report", help="Report title")
     report_parser.add_argument("--patient", default="", help="Patient ID")
@@ -96,8 +97,9 @@ def main(argv: list[str] | None = None) -> int:
     batch_parser.add_argument("--ref", help="Shared reference dose (.npy or DICOM RT Dose)")
     batch_parser.add_argument("--criteria", default="3/3", help="Dose%%/DTA(mm) for gamma, e.g. '3/3'")
     batch_parser.add_argument("--threshold", type=float, default=10.0, help="Gamma dose threshold (%%)")
-    batch_parser.add_argument("--pixel-size", type=float, default=1.0,
-                              help="Film pixel size in mm (used for gamma and DICOM resampling)")
+    batch_parser.add_argument("--pixel-size", type=float, default=None,
+                              help="Film pixel size in mm (used for gamma and DICOM resampling). "
+                                   "Default: derived from each film's TIFF resolution")
     batch_parser.add_argument("--outdir", default="batch_qa_out", help="Output directory")
 
     # --- export-dicom ---
@@ -105,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         "export-dicom", help="Export a dose map (.npy) to a DICOM RT Dose file"
     )
     export_parser.add_argument("--dose", required=True, help="Dose map (.npy), in Gy")
-    export_parser.add_argument("--pixel-size", type=float, default=1.0, help="Pixel size in mm")
+    export_parser.add_argument("--pixel-size", type=float, default=None, help=_PIXEL_SIZE_HELP)
     export_parser.add_argument("--patient", default="", help="Patient name")
     export_parser.add_argument("--patient-id", default="", help="Patient ID")
     export_parser.add_argument("--plan", default="", help="RT Plan label")
@@ -120,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     sr_parser.add_argument("--reference", help="Reference dose (.npy); enables gamma section")
     sr_parser.add_argument("--criteria", default="3/3", help="Dose%%/DTA(mm), e.g. '3/3'")
     sr_parser.add_argument("--threshold", type=float, default=10.0, help="Dose threshold (%%)")
-    sr_parser.add_argument("--pixel-size", type=float, default=1.0, help="Pixel size in mm")
+    sr_parser.add_argument("--pixel-size", type=float, default=None, help=_PIXEL_SIZE_HELP)
     sr_parser.add_argument("--method", default="", help="Dosimetry method name")
     sr_parser.add_argument("--film-type", default="", help="Film model, e.g. EBT3")
     sr_parser.add_argument("--patient", default="", help="Patient name")
@@ -230,6 +232,30 @@ def _cmd_solve(args: argparse.Namespace) -> int:
     return 0
 
 
+_FALLBACK_PIXEL_SIZE_MM = 1.0
+_PIXEL_SIZE_HELP = (
+    "Pixel size in mm (25.4 / scan DPI, e.g. 0.169 for 150 dpi). A .npy file carries no "
+    "scale; if omitted, 1.0 is assumed with a warning"
+)
+
+
+def _pixel_size(args: argparse.Namespace) -> float:
+    """Pixel size for commands that read ``.npy`` dose maps (which have no scale).
+
+    Falls back to 1 mm for backwards compatibility, but says so: gamma converts
+    the DTA from mm to pixels, so a wrong value silently changes the pass rate.
+    """
+    if args.pixel_size is not None:
+        return float(args.pixel_size)
+    print(
+        f"Warning: --pixel-size not given; assuming {_FALLBACK_PIXEL_SIZE_MM} mm. "
+        "Gamma distance-to-agreement and DICOM spacing depend on it; "
+        "pass the film's real pixel size (25.4 / scan DPI).",
+        file=sys.stderr,
+    )
+    return _FALLBACK_PIXEL_SIZE_MM
+
+
 def _cmd_gamma(args: argparse.Namespace) -> int:
     """Run the gamma command."""
     from chromadose.analysis.gamma import gamma_2d
@@ -246,7 +272,7 @@ def _cmd_gamma(args: argparse.Namespace) -> int:
         reference, measured,
         dose_criteria=dose_crit,
         distance_criteria_mm=dta_crit,
-        pixel_size_mm=args.pixel_size,
+        pixel_size_mm=_pixel_size(args),
         dose_threshold_pct=args.threshold,
     )
 
@@ -284,7 +310,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
     gamma_result = None
     if reference is not None:
         from chromadose.analysis.gamma import gamma_2d
-        gamma_result = gamma_2d(reference, measured)
+        gamma_result = gamma_2d(reference, measured, pixel_size_mm=_pixel_size(args))
 
     generate_report(
         args.output, dm,
@@ -369,18 +395,26 @@ def _cmd_batch_qa(args: argparse.Namespace) -> int:
         try:
             film = load_tiff(film_path)
             result = solver.solve(film, cal.result)
+            # Each film's own scale unless overridden; scans can differ in DPI.
+            pixel_size = args.pixel_size if args.pixel_size is not None else film.pixel_size_mm
+            if ref_source is not None and args.pixel_size is None and film.dpi_assumed:
+                print(
+                    f"Warning: {film_path} has no usable resolution in its TIFF; assuming "
+                    f"{film.dpi:g} dpi ({pixel_size:.3f} mm/pixel). Pass --pixel-size to set it.",
+                    file=sys.stderr,
+                )
 
             np.save(outdir / f"{name}_dose.npy", result.dose)
 
             pass_rate_str = ""
             pass_rate_pct = ""
             if ref_source is not None:
-                reference = _reference_for_film(ref_source, result.dose.shape, args.pixel_size)
+                reference = _reference_for_film(ref_source, result.dose.shape, pixel_size)
                 gamma = gamma_2d(
                     reference, result.dose,
                     dose_criteria=dose_crit,
                     distance_criteria_mm=dta_crit,
-                    pixel_size_mm=args.pixel_size,
+                    pixel_size_mm=pixel_size,
                     dose_threshold_pct=args.threshold,
                 )
                 np.save(outdir / f"{name}_gamma.npy", gamma.gamma_map)
@@ -438,10 +472,11 @@ def _cmd_export_dicom(args: argparse.Namespace) -> int:
     from chromadose.io.dicom import save_dicom_dose
 
     dose = np.load(args.dose)
+    px = _pixel_size(args)
     save_dicom_dose(
         dose,
         args.output,
-        pixel_spacing_mm=(args.pixel_size, args.pixel_size),
+        pixel_spacing_mm=(px, px),
         patient_name=args.patient,
         patient_id=args.patient_id,
         plan_label=args.plan,
@@ -469,7 +504,7 @@ def _cmd_export_sr(args: argparse.Namespace) -> int:
             reference, measured,
             dose_criteria=dose_crit,
             distance_criteria_mm=dta_crit,
-            pixel_size_mm=args.pixel_size,
+            pixel_size_mm=_pixel_size(args),
             dose_threshold_pct=args.threshold,
         )
 

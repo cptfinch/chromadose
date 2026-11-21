@@ -180,6 +180,7 @@
             <label class="field"><span>Pixel size (mm)</span><input type="number" step="0.001" min="0.001" value="0.353" data-sync="pixel"></label>
             <label class="field"><span>Target pass rate (%)</span><input type="number" step="1" min="0" max="100" value="95" id="target-pass"></label>
           </div>
+          <p class="hint pixel-note"></p>
           <p class="hint">Pixel size = 25.4 ÷ scan DPI (72 dpi → 0.353 mm, 150 dpi → 0.169 mm). The target only colours the result; it is not a clinical standard.</p>
           <div class="actions">
             <button type="button" class="btn primary" id="btn-gamma" disabled>Run gamma analysis</button>
@@ -234,6 +235,7 @@
             <label class="field"><span>Threshold (%)</span><input type="number" step="1" min="0" max="100" value="10" data-sync="threshold"></label>
             <label class="field"><span>Pixel size (mm)</span><input type="number" step="0.001" min="0.001" value="0.353" data-sync="pixel"></label>
           </div>
+          <p class="hint pixel-note"></p>
           <p class="hint">Patient identifiers are written into the exported files. Use anonymised IDs unless your department's policy says otherwise. Nothing is stored in your browser.</p>
         </div>
 

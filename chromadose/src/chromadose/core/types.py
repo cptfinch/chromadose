@@ -21,12 +21,16 @@ class FilmScan:
         green: Green channel pixel values, normalized to [0, 1]. Shape (H, W).
         blue: Blue channel pixel values, normalized to [0, 1]. Shape (H, W).
         dpi: Scanner resolution in dots per inch.
+        dpi_assumed: True when ``dpi`` is a fallback rather than read from the
+            file (the TIFF carried no usable resolution). ``pixel_size_mm`` is
+            then a guess, and callers should say so or ask for the real value.
     """
 
     red: NDArray[np.floating]
     green: NDArray[np.floating]
     blue: NDArray[np.floating]
     dpi: float = 72.0
+    dpi_assumed: bool = False
 
     @property
     def shape(self) -> tuple[int, int]:

@@ -47,7 +47,7 @@ async def plan_geometry(
 @router.post("/export/rtdose")
 async def export_rtdose(
     dose: UploadFile = File(..., description="Dose map (.npy), in Gy"),
-    pixel_size_mm: float = Form(1.0),
+    pixel_size_mm: float = Form(..., description="Pixel size in mm (25.4 / scan DPI)"),
     patient_name: str = Form(""),
     patient_id: str = Form(""),
     plan_label: str = Form(""),
@@ -67,7 +67,7 @@ async def export_sr(
     reference: UploadFile | None = File(None, description="Reference dose (.npy); enables gamma"),
     criteria: str = Form("3/3"),
     threshold: float = Form(10.0),
-    pixel_size_mm: float = Form(1.0),
+    pixel_size_mm: float = Form(..., description="Pixel size in mm (25.4 / scan DPI)"),
     method: str = Form(""),
     film_type: str = Form(""),
     patient_name: str = Form(""),
