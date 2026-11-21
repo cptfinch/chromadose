@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 import numpy as np
 from numpy.typing import NDArray
 
+# Smallest |pixel - s| allowed when inverting the response curve; see
+# FitParams._denominator.
+_MIN_DENOMINATOR = 1e-10
+
 
 @dataclass(frozen=True)
 class FilmScan:
@@ -89,13 +93,38 @@ class FitParams:
         """Predict pixel value for given dose."""
         return (self.r + self.s * dose) / (self.t + dose)
 
+    def _denominator(self, pixel: NDArray[np.floating]) -> NDArray[np.floating]:
+        """``pixel - s``, kept away from zero.
+
+        The response curve tends to ``s`` as dose goes to infinity, so a pixel at
+        (or numerically on top of) ``s`` has no finite dose. Rather than divide
+        by zero, the magnitude is held at ``_MIN_DENOMINATOR`` with the sign
+        preserved, which gives a very large finite dose that callers can clip or
+        flag as beyond the calibrated range. An exact zero counts as positive.
+        NaN pixels stay NaN.
+        """
+        denom = np.asarray(pixel, dtype=np.float64) - self.s
+        floor = np.where(denom < 0, -_MIN_DENOMINATOR, _MIN_DENOMINATOR)
+        return np.where(np.abs(denom) < _MIN_DENOMINATOR, floor, denom)
+
     def dose(self, pixel: NDArray[np.floating]) -> NDArray[np.floating]:
         """Invert the rational function: given pixel value, return dose.
 
         From pixel = (r + s*D) / (t + D), solving for D:
             D = (r - pixel * t) / (pixel - s)
+
+        Pixels at the asymptote ``s`` give a very large finite dose instead of a
+        division by zero (see ``_denominator``). Pixels brighter than the zero-dose
+        response or darker than ``s`` give a negative dose, as film noise can.
         """
-        return (self.r - pixel * self.t) / (pixel - self.s)
+        return (self.r - pixel * self.t) / self._denominator(pixel)
+
+    def ddose_dpixel(self, pixel: NDArray[np.floating]) -> NDArray[np.floating]:
+        """Derivative dD/d(pixel) = (s*t - r) / (pixel - s)^2.
+
+        Uses the same guarded denominator as ``dose``, so the two stay consistent.
+        """
+        return (self.s * self.t - self.r) / self._denominator(pixel) ** 2
 
     def dpixel_ddose(self, dose: NDArray[np.floating]) -> NDArray[np.floating]:
         """Derivative d(pixel)/d(dose) = (s*t - r) / (t + D)^2."""
